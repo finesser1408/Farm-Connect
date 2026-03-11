@@ -23,7 +23,7 @@ export default function DashboardSidebar({ title, items }: DashboardSidebarProps
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
-        <SidebarGroup open={isExpanded} onOpenChange={() => {}}>
+        <SidebarGroup>
           <SidebarGroupLabel>{title}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>

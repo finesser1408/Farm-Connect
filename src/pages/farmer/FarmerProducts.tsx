@@ -1,10 +1,13 @@
 import { Link } from "react-router-dom";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { products } from "@/lib/mock-data";
+import { useProducts } from "@/lib/product-context";
+import { useAuth } from "@/lib/auth-context";
 
 export default function FarmerProducts() {
-  const farmerProducts = products.filter((p) => p.farmer === "Green Valley Farm");
+  const { products } = useProducts();
+  const { user } = useAuth();
+  const farmerProducts = products.filter((p) => p.farmer === user?.farmName);
 
   return (
     <div>

@@ -1,20 +1,8 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
-const salesData = [
-  { month: "Jan", revenue: 1200 },
-  { month: "Feb", revenue: 1800 },
-  { month: "Mar", revenue: 2340 },
-  { month: "Apr", revenue: 1900 },
-  { month: "May", revenue: 2100 },
-  { month: "Jun", revenue: 2500 },
-];
+const salesData = [];
 
-const topProducts = [
-  { name: "Tomatoes", value: 35 },
-  { name: "Carrots", value: 25 },
-  { name: "Spinach", value: 20 },
-  { name: "Others", value: 20 },
-];
+const topProducts = [];
 
 const COLORS = ["hsl(142, 40%, 28%)", "hsl(30, 30%, 40%)", "hsl(45, 60%, 55%)", "hsl(40, 20%, 90%)"];
 

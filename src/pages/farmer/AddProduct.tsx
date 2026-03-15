@@ -4,15 +4,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useProducts } from "@/lib/product-context";
+import { useAuth } from "@/lib/auth-context";
 
 export default function AddProduct() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { addProduct } = useProducts();
+  const { user } = useAuth();
   const [form, setForm] = useState({ name: "", category: "vegetables", price: "", quantity: "", description: "" });
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm({ ...form, [k]: e.target.value });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
+    addProduct({
+      name: form.name,
+      price: parseFloat(form.price),
+      image: "", // placeholder
+      farmer: user.farmName || "Unknown Farm",
+      farmLocation: user.farmLocation || "Unknown Location",
+      category: form.category,
+      description: form.description,
+      stock: parseInt(form.quantity),
+    });
     toast({ title: "Product published!", description: `${form.name} is now live on the marketplace.` });
     navigate("/farmer/products");
   };

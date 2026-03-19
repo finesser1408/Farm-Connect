@@ -1,7 +1,17 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle } from "lucide-react";
 
-const orders = [
+interface Order {
+  id: string;
+  customer: string;
+  product: string;
+  qty: number;
+  status: string;
+  amount: number;
+}
+
+const initialOrders: Order[] = [
   { id: "ORD-201", customer: "Alice M.", product: "Organic Tomatoes", qty: 5, status: "Pending", amount: 17.50 },
   { id: "ORD-202", customer: "Bob K.", product: "Fresh Milk", qty: 3, status: "Accepted", amount: 7.50 },
   { id: "ORD-203", customer: "Carol Z.", product: "Farm Eggs", qty: 2, status: "Shipped", amount: 8.00 },
@@ -10,6 +20,15 @@ const orders = [
 ];
 
 export default function FarmerOrders() {
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
+
+  const acceptOrder = (id: string) => {
+    setOrders(orders.map(o => o.id === id ? { ...o, status: "Accepted" } : o));
+  };
+
+  const rejectOrder = (id: string) => {
+    setOrders(orders.filter(o => o.id !== id));
+  };
   return (
     <div>
       <h1 className="mb-6 font-display text-2xl text-foreground">Order Management</h1>
@@ -30,8 +49,8 @@ export default function FarmerOrders() {
                   <td className="px-6 py-3 text-right">
                     {o.status === "Pending" && (
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" className="text-primary"><CheckCircle className="mr-1 h-4 w-4" /> Accept</Button>
-                        <Button variant="ghost" size="sm" className="text-destructive"><XCircle className="mr-1 h-4 w-4" /> Reject</Button>
+                        <Button variant="ghost" size="sm" className="text-primary" onClick={() => acceptOrder(o.id)}><CheckCircle className="mr-1 h-4 w-4" /> Accept</Button>
+                        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => rejectOrder(o.id)}><XCircle className="mr-1 h-4 w-4" /> Reject</Button>
                       </div>
                     )}
                   </td>

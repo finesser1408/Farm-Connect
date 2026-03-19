@@ -12,12 +12,8 @@ export interface Product {
   reviews: number;
 }
 
-export const categories = [
-  { name: "Fruits", slug: "fruits", image: "/cat-fruits.jpg" },
-  { name: "Vegetables", slug: "vegetables", image: "/cat-vegetables.jpg" },
-  { name: "Grains", slug: "grains", image: "/cat-grains.jpg" },
-  { name: "Dairy", slug: "dairy", image: "/cat-dairy.jpg" },
-  { name: "Livestock", slug: "livestock", image: "/cat-livestock.jpg" },
-];
+// Categories placeholder (empty until backend/API is ready)
+export const categories: any[] = [];
 
+// Products placeholder (empty until backend/API is ready)
 export const products: Product[] = [];

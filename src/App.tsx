@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CartProvider } from "@/lib/cart-context";
 import { AuthProvider } from "@/lib/auth-context";
+import { ProductProvider } from "@/lib/product-context";
 import Index from "./pages/Index";
 import Marketplace from "./pages/Marketplace";
 import ProductDetails from "./pages/ProductDetails";
@@ -40,6 +41,7 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <CartProvider>
+          <ProductProvider>
           <Toaster />
           <Sonner />
           <BrowserRouter>
@@ -75,6 +77,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
+          </ProductProvider>
         </CartProvider>
       </AuthProvider>
     </TooltipProvider>

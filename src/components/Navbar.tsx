@@ -1,11 +1,13 @@
 import { Link } from "react-router-dom";
-import { ShoppingCart, Search, Menu, X, Leaf, User } from "lucide-react";
+import { ShoppingCart, Search, Menu, X, Leaf, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart-context";
+import { useAuth } from "@/lib/auth-context";
 import { useState } from "react";
 
 export default function Navbar() {
   const { totalItems } = useCart();
+  const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -41,11 +43,33 @@ export default function Navbar() {
               )}
             </Button>
           </Link>
-          <Link to="/login" className="hidden md:block">
-            <Button variant="outline" size="sm" className="gap-2">
-              <User className="h-4 w-4" /> Login
-            </Button>
-          </Link>
+          {user ? (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-1.5">
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+                <span className="hidden text-sm font-medium text-foreground sm:block">
+                  {user.name}
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={logout}
+                className="text-foreground/70 hover:text-destructive"
+                title="Logout"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <Link to="/login" className="hidden md:block">
+              <Button variant="outline" size="sm" className="gap-2">
+                <User className="h-4 w-4" /> Login
+              </Button>
+            </Link>
+          )}
           <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)}>
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
@@ -59,7 +83,28 @@ export default function Navbar() {
             <Link to="/" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted">Home</Link>
             <Link to="/marketplace" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted">Marketplace</Link>
             <Link to="/cart" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted">Cart</Link>
-            <Link to="/login" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted">Login / Register</Link>
+            {user ? (
+              <>
+                <Link 
+                  to={user.role === "farmer" ? "/farmer" : "/customer/dashboard"} 
+                  onClick={() => setMobileOpen(false)} 
+                  className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
+                >
+                  Dashboard
+                </Link>
+                <button 
+                  onClick={() => {
+                    logout();
+                    setMobileOpen(false);
+                  }} 
+                  className="rounded-md px-3 py-2 text-sm font-medium text-left text-destructive hover:bg-muted"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Link to="/login" onClick={() => setMobileOpen(false)} className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted">Login / Register</Link>
+            )}
           </nav>
         </div>
       )}

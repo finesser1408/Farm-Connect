@@ -7,14 +7,27 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
+import { useEffect } from "react";
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<"customer" | "farmer">("customer");
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", confirm: "", farmName: "", location: "", farmDesc: "" });
-  const { register } = useAuth();
+  const { register, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (user) {
+      if (user.role === "farmer") {
+        navigate("/farmer");
+      } else if (user.role === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/customer/dashboard");
+      }
+    }
+  }, [user, navigate]);
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });
 
@@ -26,8 +39,6 @@ export default function RegisterPage() {
     }
     register({ name: form.name, email: form.email, phone: form.phone, role, farmName: form.farmName || undefined, farmLocation: form.location || undefined }, form.password);
     toast({ title: "Account created!", description: "Welcome to FarmFresh." });
-    if (role === "farmer") navigate("/farmer");
-    else navigate("/");
   };
 
   return (

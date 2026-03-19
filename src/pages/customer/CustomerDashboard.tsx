@@ -5,16 +5,12 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 const stats = [
-  { label: "Total Orders", value: "12", icon: Package, color: "text-primary" },
-  { label: "Pending", value: "2", icon: Clock, color: "text-warning" },
-  { label: "Delivered", value: "10", icon: CheckCircle, color: "text-primary" },
+  { label: "Total Orders", value: "0", icon: Package, color: "text-primary" },
+  { label: "Pending", value: "0", icon: Clock, color: "text-warning" },
+  { label: "Delivered", value: "0", icon: CheckCircle, color: "text-primary" },
 ];
 
-const recentOrders = [
-  { id: "ORD-001", date: "2026-03-10", status: "Delivered", total: 24.50 },
-  { id: "ORD-002", date: "2026-03-09", status: "Processing", total: 15.00 },
-  { id: "ORD-003", date: "2026-03-08", status: "Shipped", total: 32.00 },
-];
+const recentOrders: any[] = [];
 
 export default function CustomerDashboard() {
   return (
@@ -39,16 +35,26 @@ export default function CustomerDashboard() {
             <h2 className="font-display text-lg text-foreground">Recent Orders</h2>
             <Link to="/customer/orders"><Button variant="ghost" size="sm" className="text-primary">View All</Button></Link>
           </div>
-          <div className="divide-y divide-border">
-            {recentOrders.map((o) => (
-              <div key={o.id} className="flex items-center justify-between px-6 py-3 text-sm">
-                <span className="font-medium text-foreground">{o.id}</span>
-                <span className="text-muted-foreground">{o.date}</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${o.status === "Delivered" ? "bg-primary/10 text-primary" : o.status === "Shipped" ? "bg-accent/20 text-accent-foreground" : "bg-muted text-muted-foreground"}`}>{o.status}</span>
-                <span className="font-medium text-foreground">${o.total.toFixed(2)}</span>
-              </div>
-            ))}
-          </div>
+          {recentOrders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <ShoppingBag className="mb-3 h-12 w-12 text-muted-foreground/40" />
+              <p className="text-sm">No orders yet. Start shopping to see your orders here!</p>
+              <Link to="/marketplace" className="mt-3">
+                <Button size="sm">Browse Marketplace</Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {recentOrders.map((o) => (
+                <div key={o.id} className="flex items-center justify-between px-6 py-3 text-sm">
+                  <span className="font-medium text-foreground">{o.id}</span>
+                  <span className="text-muted-foreground">{o.date}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${o.status === "Delivered" ? "bg-primary/10 text-primary" : o.status === "Shipped" ? "bg-accent/20 text-accent-foreground" : "bg-muted text-muted-foreground"}`}>{o.status}</span>
+                  <span className="font-medium text-foreground">${o.total.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <Footer />

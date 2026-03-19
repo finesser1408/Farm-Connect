@@ -7,25 +7,33 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
+import { useEffect } from "react";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (user) {
+      if (user.role === "farmer") {
+        navigate("/farmer");
+      } else if (user.role === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/customer/dashboard");
+      }
+    }
+  }, [user, navigate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const success = login(email, password);
     if (success) {
       toast({ title: "Welcome back!", description: "You have been signed in." });
-      // Redirect based on role — useAuth will have user set
-      const user = { email };
-      if (email === "farmer@test.com") navigate("/farmer");
-      else if (email === "admin@test.com") navigate("/admin");
-      else navigate("/");
     } else {
       toast({ title: "Login failed", description: "Invalid email or password. Try customer@test.com / password", variant: "destructive" });
     }

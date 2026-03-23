@@ -38,7 +38,7 @@ export default function RegisterPage() {
       return;
     }
     register({ name: form.name, email: form.email, phone: form.phone, role, farmName: form.farmName || undefined, farmLocation: form.location || undefined }, form.password);
-    toast({ title: "Account created!", description: "Welcome to FarmFresh." });
+    toast({ title: "Account created!", description: "Welcome to Farm Connect." });
   };
 
   return (
@@ -49,7 +49,7 @@ export default function RegisterPage() {
           <div className="mb-6 text-center">
             <Leaf className="mx-auto mb-3 h-8 w-8 text-primary" />
             <h1 className="font-display text-2xl text-foreground">Create Account</h1>
-            <p className="text-sm text-muted-foreground">Join FarmFresh today</p>
+            <p className="text-sm text-muted-foreground">Join Farm Connect today</p>
           </div>
           <div className="mb-6 grid grid-cols-2 gap-2">
             <button onClick={() => setRole("customer")} className={`rounded-md border px-4 py-2.5 text-sm font-medium transition-colors ${role === "customer" ? "border-primary bg-primary text-primary-foreground" : "border-input text-foreground hover:bg-muted"}`}>🛒 Customer</button>

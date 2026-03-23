@@ -8,7 +8,7 @@ export default function Footer() {
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <div className="mb-4 flex items-center gap-2 font-display text-xl">
-              <Leaf className="h-5 w-5" /> FarmFresh
+              <Leaf className="h-5 w-5" /> Farm Connect
             </div>
             <p className="text-sm text-primary-foreground/70">
               Connecting local farmers directly to your table. Fresh, organic, and sustainably grown produce.
@@ -32,14 +32,14 @@ export default function Footer() {
           <div>
             <h4 className="mb-3 font-display text-sm">Contact</h4>
             <div className="flex flex-col gap-2 text-sm text-primary-foreground/70">
-              <span>info@farmfresh.co.zw</span>
+              <span>info@farmconnect.co.zw</span>
               <span>+263 77 123 4567</span>
               <span>Harare, Zimbabwe</span>
             </div>
           </div>
         </div>
         <div className="mt-8 border-t border-primary-foreground/20 pt-6 text-center text-xs text-primary-foreground/50">
-          © 2026 FarmFresh. All rights reserved.
+          © 2026 Farm Connect. All rights reserved.
         </div>
       </div>
     </footer>

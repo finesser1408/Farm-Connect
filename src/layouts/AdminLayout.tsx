@@ -29,7 +29,7 @@ export default function AdminLayout() {
           <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-card px-4">
             <div className="flex items-center gap-2">
               <SidebarTrigger />
-              <span className="font-display text-lg text-foreground">FarmFresh — Admin</span>
+              <span className="font-display text-lg text-foreground">Farm Connect — Admin</span>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted-foreground">{user?.name || "Admin"}</span>

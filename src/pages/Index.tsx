@@ -150,7 +150,7 @@ const Index = () => {
         <div className="container">
           <h2 className="mb-4 font-display text-3xl text-primary-foreground">Are You a Farmer?</h2>
           <p className="mx-auto mb-8 max-w-md text-primary-foreground/80">
-            Join FarmFresh and sell your produce directly to customers. No middlemen, fair prices.
+            Join Farm Connect and sell your produce directly to customers. No middlemen, fair prices.
           </p>
           <Link to="/register">
             <Button size="lg" variant="secondary" className="font-semibold">

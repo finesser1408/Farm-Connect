@@ -47,7 +47,7 @@ export default function LoginPage() {
           <div className="mb-6 text-center">
             <Leaf className="mx-auto mb-3 h-8 w-8 text-primary" />
             <h1 className="font-display text-2xl text-foreground">Welcome Back</h1>
-            <p className="text-sm text-muted-foreground">Sign in to your FarmFresh account</p>
+            <p className="text-sm text-muted-foreground">Sign in to your Farm Connect account</p>
           </div>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div>

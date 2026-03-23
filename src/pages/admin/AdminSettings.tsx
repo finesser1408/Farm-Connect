@@ -32,8 +32,8 @@ export default function AdminSettings() {
       <div className="rounded-lg border border-border bg-card p-6">
         <h2 className="mb-4 font-display text-lg text-foreground">Platform Settings</h2>
         <div className="space-y-4">
-          <div><Label>Platform Name</Label><Input defaultValue="FarmFresh" /></div>
-          <div><Label>Support Email</Label><Input defaultValue="support@farmfresh.co.zw" /></div>
+          <div><Label>Platform Name</Label><Input defaultValue="Farm Connect" /></div>
+          <div><Label>Support Email</Label><Input defaultValue="support@farmconnect.co.zw" /></div>
           <div><Label>Delivery Fee ($)</Label><Input type="number" defaultValue="5.00" /></div>
           <Button onClick={handleSavePlatform}>Save Settings</Button>
         </div>

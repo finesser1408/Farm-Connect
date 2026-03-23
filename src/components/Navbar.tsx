@@ -16,7 +16,7 @@ export default function Navbar() {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 font-display text-xl text-primary">
           <Leaf className="h-6 w-6" />
-          FarmFresh
+          Farm Connect
         </Link>
 
         {/* Desktop Nav */}

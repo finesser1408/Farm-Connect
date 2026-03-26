@@ -11,13 +11,7 @@ interface Order {
   amount: number;
 }
 
-const initialOrders: Order[] = [
-  { id: "ORD-201", customer: "Alice M.", product: "Organic Tomatoes", qty: 5, status: "Pending", amount: 17.50 },
-  { id: "ORD-202", customer: "Bob K.", product: "Fresh Milk", qty: 3, status: "Accepted", amount: 7.50 },
-  { id: "ORD-203", customer: "Carol Z.", product: "Farm Eggs", qty: 2, status: "Shipped", amount: 8.00 },
-  { id: "ORD-204", customer: "Dave P.", product: "Organic Carrots", qty: 4, status: "Pending", amount: 8.00 },
-  { id: "ORD-205", customer: "Eve R.", product: "Fresh Spinach", qty: 6, status: "Delivered", amount: 9.00 },
-];
+const initialOrders: Order[] = [];
 
 export default function FarmerOrders() {
   const [orders, setOrders] = useState<Order[]>(initialOrders);

@@ -1,26 +1,27 @@
 import { Users, Sprout, Package, DollarSign } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 
-const stats = [
-  { label: "Total Users", value: "1,248", icon: Users },
-  { label: "Total Farmers", value: "86", icon: Sprout },
-  { label: "Total Products", value: "342", icon: Package },
-  { label: "Total Sales", value: "$45,200", icon: DollarSign },
-];
-
-const activityData = [
-  { month: "Jan", orders: 120 },
-  { month: "Feb", orders: 180 },
-  { month: "Mar", orders: 240 },
-  { month: "Apr", orders: 200 },
-  { month: "May", orders: 310 },
-  { month: "Jun", orders: 280 },
-];
+type StatItem = { label: string; value: string; icon: ComponentType<{ className?: string }> };
+type ActivityItem = { month: string; orders: number };
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState<StatItem[]>([]);
+  const [activityData, setActivityData] = useState<ActivityItem[]>([]);
   const [blocked, setBlocked] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+
+  // TODO: replace with real API calls
+  useEffect(() => {
+    setStats([
+      { label: "Total Users", value: "—", icon: Users },
+      { label: "Total Farmers", value: "—", icon: Sprout },
+      { label: "Total Products", value: "—", icon: Package },
+      { label: "Total Sales", value: "—", icon: DollarSign },
+    ]);
+
+    setActivityData([]);
+  }, []);
 
   return (
     <>

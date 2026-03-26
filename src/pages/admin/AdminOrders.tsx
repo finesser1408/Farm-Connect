@@ -1,11 +1,22 @@
-const orders = [
-  { id: "ORD-001", customer: "John C.", farmer: "Green Valley", product: "Tomatoes", total: 17.50, status: "Delivered" },
-  { id: "ORD-002", customer: "Alice M.", farmer: "Sunrise Berries", product: "Strawberries", total: 25.00, status: "Processing" },
-  { id: "ORD-003", customer: "Bob K.", farmer: "Meadow Dairy", product: "Fresh Milk", total: 7.50, status: "Shipped" },
-  { id: "ORD-004", customer: "Carol Z.", farmer: "Golden Fields", product: "Maize Meal", total: 13.50, status: "Pending" },
-];
+import { useEffect, useState } from "react";
+
+type Order = {
+  id: string;
+  customer: string;
+  farmer: string;
+  product: string;
+  total: number;
+  status: string;
+};
 
 export default function AdminOrders() {
+  const [orders, setOrders] = useState<Order[]>([]);
+
+  // TODO: replace with real API request
+  useEffect(() => {
+    setOrders([]);
+  }, []);
+
   return (
     <div>
       <h1 className="mb-6 font-display text-2xl text-foreground">All Orders</h1>

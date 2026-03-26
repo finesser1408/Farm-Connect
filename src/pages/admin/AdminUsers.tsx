@@ -1,13 +1,38 @@
 import { Button } from "@/components/ui/button";
 import { Ban, CheckCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
-const users = [
-  { id: "u1", name: "John Customer", email: "john@example.com", role: "Customer", status: "Active", joined: "2026-01-15" },
-  { id: "u2", name: "Alice Buyer", email: "alice@example.com", role: "Customer", status: "Active", joined: "2026-02-01" },
-  { id: "u3", name: "Bob Smith", email: "bob@example.com", role: "Customer", status: "Blocked", joined: "2026-01-20" },
-];
+type User = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  joined: string;
+};
 
 export default function AdminUsers() {
+  const [users, setUsers] = useState<User[]>([]);
+  const { toast } = useToast();
+
+  // TODO: replace with real API call
+  useEffect(() => {
+    setUsers([]);
+  }, []);
+
+  const handleToggleBlock = (userId: string, currentStatus: string) => {
+    setUsers(users.map(u => 
+      u.id === userId ? { ...u, status: currentStatus === "Active" ? "Blocked" : "Active" } : u
+    ));
+    const newStatus = currentStatus === "Active" ? "Blocked" : "Active";
+    const action = newStatus === "Blocked" ? "blocked" : "unblocked";
+    toast({
+      title: `User ${action}`,
+      description: `User has been ${action} successfully.`,
+    });
+  };
+
   return (
     <div>
       <h1 className="mb-6 font-display text-2xl text-foreground">User Management</h1>
@@ -26,7 +51,7 @@ export default function AdminUsers() {
                   <td className="px-6 py-3"><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${u.status === "Active" ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>{u.status}</span></td>
                   <td className="px-6 py-3 text-muted-foreground">{u.joined}</td>
                   <td className="px-6 py-3 text-right">
-                    <Button variant="ghost" size="sm">{u.status === "Active" ? <><Ban className="mr-1 h-4 w-4" /> Block</> : <><CheckCircle className="mr-1 h-4 w-4" /> Unblock</>}</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleToggleBlock(u.id, u.status)}>{u.status === "Active" ? <><Ban className="mr-1 h-4 w-4" /> Block</> : <><CheckCircle className="mr-1 h-4 w-4" /> Unblock</>}</Button>
                   </td>
                 </tr>
               ))}

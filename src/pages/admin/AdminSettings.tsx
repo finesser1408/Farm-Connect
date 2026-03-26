@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
 export default function AdminSettings() {
-  const [platformName, setPlatformName] = useState("Farm Connect");
-  const [supportEmail, setSupportEmail] = useState("support@farmconnect.co.zw");
-  const [deliveryFee, setDeliveryFee] = useState("5.00");
+  const [platformName, setPlatformName] = useState("");
+  const [supportEmail, setSupportEmail] = useState("");
+  const [deliveryFee, setDeliveryFee] = useState("");
   const [ecoCashMerchantId, setEcoCashMerchantId] = useState("");
   const [oneMoneyMerchantId, setOneMoneyMerchantId] = useState("");
   const [theme, setTheme] = useState("light");
@@ -15,6 +15,15 @@ export default function AdminSettings() {
   const [password, setPassword] = useState("");
 
   const { toast } = useToast();
+
+  // TODO: load settings from API
+  useEffect(() => {
+    // Example: fetch('/api/admin/settings').then(res => res.json()).then(data => {
+    //   setPlatformName(data.platformName || "");
+    //   ...
+    // });
+  }, []);
+
 
   const handleSavePlatform = () => {
     console.log("Platform settings saved", { platformName, supportEmail, deliveryFee });

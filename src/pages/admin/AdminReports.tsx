@@ -1,23 +1,19 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
+import { useEffect, useState } from "react";
 
-const revenueData = [
-  { month: "Jan", revenue: 4200 },
-  { month: "Feb", revenue: 5800 },
-  { month: "Mar", revenue: 7300 },
-  { month: "Apr", revenue: 6100 },
-  { month: "May", revenue: 8900 },
-  { month: "Jun", revenue: 9500 },
-];
-
-const farmerPerformance = [
-  { farmer: "Green Valley", sales: 1200 },
-  { farmer: "Sunrise", sales: 980 },
-  { farmer: "Meadow", sales: 850 },
-  { farmer: "Golden", sales: 720 },
-  { farmer: "Bee Haven", sales: 650 },
-];
+type RevenueData = { month: string; revenue: number };
+type FarmerPerformance = { farmer: string; sales: number };
 
 export default function AdminReports() {
+  const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
+  const [farmerPerformance, setFarmerPerformance] = useState<FarmerPerformance[]>([]);
+
+  // TODO: replace with real API calls
+  useEffect(() => {
+    setRevenueData([]);
+    setFarmerPerformance([]);
+  }, []);
+
   return (
     <div>
       <h1 className="mb-6 font-display text-2xl text-foreground">Reports & Analytics</h1>

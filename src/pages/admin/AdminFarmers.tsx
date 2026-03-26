@@ -1,13 +1,24 @@
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 
-const farmers = [
-  { id: "f1", name: "Jane Farmer", farm: "Green Valley Farm", location: "Harare", status: "Verified", products: 12 },
-  { id: "f2", name: "Tom Grower", farm: "Sunrise Berries", location: "Mutare", status: "Pending", products: 5 },
-  { id: "f3", name: "Sara Fields", farm: "Golden Fields", location: "Chinhoyi", status: "Verified", products: 8 },
-];
+type Farmer = {
+  id: string;
+  name: string;
+  farm: string;
+  location: string;
+  status: string;
+  products: number;
+};
 
 export default function AdminFarmers() {
+  const [farmers, setFarmers] = useState<Farmer[]>([]);
+
+  // TODO: replace with real API call
+  useEffect(() => {
+    setFarmers([]);
+  }, []);
+
   return (
     <div>
       <h1 className="mb-6 font-display text-2xl text-foreground">Farmer Management</h1>

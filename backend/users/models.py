@@ -5,6 +5,7 @@ from django.utils.translation import gettext_lazy as _
 class User(AbstractUser):
     """Custom user model"""
     USER_TYPE_CHOICES = (
+        ('admin', 'Admin'),
         ('farmer', 'Farmer'),
         ('customer', 'Customer'),
     )
@@ -37,6 +38,10 @@ class User(AbstractUser):
     @property
     def is_customer(self):
         return self.user_type == 'customer'
+
+    @property
+    def is_admin(self):
+        return self.user_type == 'admin'
 
 class FarmerProfile(models.Model):
     """Profile model for farmers"""

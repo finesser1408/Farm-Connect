@@ -4,10 +4,17 @@ from django.shortcuts import get_object_or_404
 from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
 from .models import Product
 from .serializers import ProductSerializer
+
+
+class ProductPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 
 def _ensure_farmer_permission(request, product=None):
@@ -69,6 +76,12 @@ def products_list_create(request):
                 products = products.filter(price__lte=Decimal(max_price))
             except InvalidOperation:
                 return Response({'detail': 'Invalid max_price filter.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        paginator = ProductPagination()
+        page = paginator.paginate_queryset(products, request)
+        if page is not None:
+            serializer = ProductSerializer(page, many=True, context={'request': request})
+            return paginator.get_paginated_response(serializer.data)
 
         serializer = ProductSerializer(products, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)

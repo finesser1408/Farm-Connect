@@ -75,32 +75,36 @@ class ProductAPITestCase(APITestCase):
         response = self.client.get(url, {'search': 'apple'})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['name'], 'Organic Apple')
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(response.data['results'][0]['name'], 'Organic Apple')
 
     def test_product_list_filter_by_category(self):
         url = reverse('product-list-create')
         response = self.client.get(url, {'category': 'fruits'})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
-        self.assertTrue(all(item['category'] == self.category.id for item in response.data))
+        self.assertEqual(response.data['count'], 2)
+        self.assertEqual(len(response.data['results']), 2)
+        self.assertTrue(all(item['category'] == self.category.id for item in response.data['results']))
 
     def test_product_list_filter_by_price_exact(self):
         url = reverse('product-list-create')
         response = self.client.get(url, {'price': '2.00'})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['name'], 'Carrot Bundle')
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(response.data['results'][0]['name'], 'Carrot Bundle')
 
     def test_product_list_filter_by_price_range(self):
         url = reverse('product-list-create')
         response = self.client.get(url, {'min_price': '2.00', 'max_price': '2.50'})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
-        names = {item['name'] for item in response.data}
+        self.assertEqual(response.data['count'], 2)
+        self.assertEqual(len(response.data['results']), 2)
+        names = {item['name'] for item in response.data['results']}
         self.assertEqual(names, {'Carrot Bundle', 'Organic Broccoli'})
 
     def test_product_list_filter_by_location(self):
@@ -108,6 +112,17 @@ class ProductAPITestCase(APITestCase):
         response = self.client.get(url, {'location': 'Nairobi'})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 3)
-        names = {item['name'] for item in response.data}
+        self.assertEqual(response.data['count'], 3)
+        self.assertEqual(len(response.data['results']), 3)
+        names = {item['name'] for item in response.data['results']}
         self.assertEqual(names, {'Organic Apple', 'Carrot Bundle', 'Organic Broccoli'})
+
+    def test_product_list_pagination_page_two(self):
+        url = reverse('product-list-create')
+        response = self.client.get(url, {'page': 2, 'page_size': 2})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 4)
+        self.assertEqual(len(response.data['results']), 2)
+        names = {item['name'] for item in response.data['results']}
+        self.assertEqual(names, {'Carrot Bundle', 'Organic Apple'})

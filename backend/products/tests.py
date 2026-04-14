@@ -3,6 +3,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from backend.users.models import FarmerProfile
 from .models import Category, Product
 
 
@@ -12,6 +13,12 @@ class ProductAPITestCase(APITestCase):
             username='farmer',
             email='farmer@example.com',
             password='password123',
+            user_type='farmer',
+        )
+        FarmerProfile.objects.create(
+            user=self.user,
+            farm_name='Green Fields',
+            location='Nairobi',
         )
         self.category = Category.objects.create(name='Fruits', slug='fruits')
         Product.objects.create(
@@ -41,6 +48,26 @@ class ProductAPITestCase(APITestCase):
             description='Fresh broccoli',
             price='2.50',
             stock=8,
+        )
+        self.other_user = get_user_model().objects.create_user(
+            username='farmer2',
+            email='farmer2@example.com',
+            password='password123',
+            user_type='farmer',
+        )
+        FarmerProfile.objects.create(
+            user=self.other_user,
+            farm_name='Kigali Greens',
+            location='Kigali',
+        )
+        Product.objects.create(
+            farmer=self.other_user,
+            category=self.other_category,
+            name='Kigali Kale',
+            slug='kigali-kale',
+            description='Fresh kale',
+            price='1.50',
+            stock=20,
         )
 
     def test_product_list_search_by_name(self):
@@ -75,3 +102,12 @@ class ProductAPITestCase(APITestCase):
         self.assertEqual(len(response.data), 2)
         names = {item['name'] for item in response.data}
         self.assertEqual(names, {'Carrot Bundle', 'Organic Broccoli'})
+
+    def test_product_list_filter_by_location(self):
+        url = reverse('product-list-create')
+        response = self.client.get(url, {'location': 'Nairobi'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)
+        names = {item['name'] for item in response.data}
+        self.assertEqual(names, {'Organic Apple', 'Carrot Bundle', 'Organic Broccoli'})

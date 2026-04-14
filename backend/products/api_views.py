@@ -45,6 +45,10 @@ def products_list_create(request):
         if category:
             products = products.filter(category__slug__iexact=category)
 
+        location = request.query_params.get('location')
+        if location:
+            products = products.filter(farmer__farmer_profile__location__icontains=location)
+
         price = request.query_params.get('price')
         if price:
             try:

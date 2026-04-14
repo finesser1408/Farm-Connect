@@ -1,4 +1,4 @@
-gfrom django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -58,3 +58,20 @@ class ProductAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
         self.assertTrue(all(item['category'] == self.category.id for item in response.data))
+
+    def test_product_list_filter_by_price_exact(self):
+        url = reverse('product-list-create')
+        response = self.client.get(url, {'price': '2.00'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], 'Carrot Bundle')
+
+    def test_product_list_filter_by_price_range(self):
+        url = reverse('product-list-create')
+        response = self.client.get(url, {'min_price': '2.00', 'max_price': '2.50'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+        names = {item['name'] for item in response.data}
+        self.assertEqual(names, {'Carrot Bundle', 'Organic Broccoli'})

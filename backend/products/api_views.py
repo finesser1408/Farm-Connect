@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation
+
 from django.shortcuts import get_object_or_404
 from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes, parser_classes
@@ -42,6 +44,27 @@ def products_list_create(request):
         category = request.query_params.get('category')
         if category:
             products = products.filter(category__slug__iexact=category)
+
+        price = request.query_params.get('price')
+        if price:
+            try:
+                products = products.filter(price=Decimal(price))
+            except InvalidOperation:
+                return Response({'detail': 'Invalid price filter.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        min_price = request.query_params.get('min_price')
+        if min_price:
+            try:
+                products = products.filter(price__gte=Decimal(min_price))
+            except InvalidOperation:
+                return Response({'detail': 'Invalid min_price filter.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        max_price = request.query_params.get('max_price')
+        if max_price:
+            try:
+                products = products.filter(price__lte=Decimal(max_price))
+            except InvalidOperation:
+                return Response({'detail': 'Invalid max_price filter.'}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ProductSerializer(products, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)

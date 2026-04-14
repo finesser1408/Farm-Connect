@@ -39,6 +39,10 @@ def products_list_create(request):
         if search:
             products = products.filter(name__icontains=search)
 
+        category = request.query_params.get('category')
+        if category:
+            products = products.filter(category__slug__iexact=category)
+
         serializer = ProductSerializer(products, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 

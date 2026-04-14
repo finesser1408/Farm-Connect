@@ -35,6 +35,10 @@ def products_list_create(request):
         if available is not None:
             products = products.filter(is_available=available.lower() in ('1', 'true', 'yes'))
 
+        search = request.query_params.get('search')
+        if search:
+            products = products.filter(name__icontains=search)
+
         serializer = ProductSerializer(products, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 

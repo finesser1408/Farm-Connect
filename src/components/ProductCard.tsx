@@ -25,7 +25,7 @@ export default function ProductCard({ product }: { product: Product }) {
       className="group flex flex-col overflow-hidden rounded-lg border border-border bg-card shadow-card transition-shadow hover:shadow-card-hover"
     >
       <div className="relative aspect-square overflow-hidden bg-muted">
-        <div className="flex h-full items-center justify-center bg-muted text-6xl">
+        <div className="flex h-full items-center justify-center bg-muted text-6xl transition-transform duration-500 group-hover:scale-110">
           {product.category === "fruits" && "🍓"}
           {product.category === "vegetables" && "🥬"}
           {product.category === "grains" && "🌾"}

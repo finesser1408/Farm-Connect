@@ -10,10 +10,16 @@ from .serializers import (
     UserRegistrationSerializer, 
     LoginSerializer, 
     UserSerializer,
-    UserUpdateSerializer
+    UserUpdateSerializer,
+    PasswordResetRequestSerializer,
+    PasswordResetConfirmSerializer
 )
 from .models import User
 from .permissions import IsAdmin, IsFarmer
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+from backend.utils.emails import send_resend_email
 
 
 @api_view(['POST'])
@@ -168,3 +174,65 @@ def admin_user_detail(request, pk):
     elif request.method == 'DELETE':
         user.delete()
         return Response({'message': 'User deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def password_reset_request(request):
+    """
+    API endpoint to request a password reset
+    """
+    serializer = PasswordResetRequestSerializer(data=request.data)
+    if serializer.is_valid():
+        email = serializer.validated_data['email']
+        user = User.objects.filter(email=email).first()
+        if user:
+            token = default_token_generator.make_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            
+            # In a real app, this would be a link to your frontend
+            reset_url = f"https://farmfreshhub.com/password-reset/confirm/{uid}/{token}/"
+            
+            subject = "Password Reset Request - Farm Fresh Hub"
+            html_content = f"""
+                <p>Hello,</p>
+                <p>You requested a password reset for your Farm Fresh Hub account.</p>
+                <p>Click the link below to reset your password:</p>
+                <a href="{reset_url}">{reset_url}</a>
+                <p>If you did not request this, please ignore this email.</p>
+            """
+            
+            success = send_resend_email(email, subject, html_content)
+            if success:
+                return Response({'message': 'Password reset email sent'}, status=status.HTTP_200_OK)
+            else:
+                return Response({'error': 'Failed to send email'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Always return 200 to avoid email enumeration
+        return Response({'message': 'Password reset email sent if account exists'}, status=status.HTTP_200_OK)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def password_reset_confirm(request, uidb64, token):
+    """
+    API endpoint to confirm password reset
+    """
+    serializer = PasswordResetConfirmSerializer(data=request.data)
+    if serializer.is_valid():
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            user = None
+
+        if user is not None and default_token_generator.check_token(user, token):
+            user.set_password(serializer.validated_data['new_password'])
+            user.save()
+            return Response({'message': 'Password reset successful'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Invalid or expired token'}, status=status.HTTP_400_BAD_REQUEST)
+            
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

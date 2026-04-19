@@ -13,4 +13,8 @@ urlpatterns = [
     # Admin User Management
     path('admin/users/', api_views.admin_user_list, name='admin-user-list'),
     path('admin/users/<int:pk>/', api_views.admin_user_detail, name='admin-user-detail'),
+
+    # Password Reset
+    path('password-reset/', api_views.password_reset_request, name='password-reset-request'),
+    path('password-reset/confirm/<str:uidb64>/<str:token>/', api_views.password_reset_confirm, name='password-reset-confirm'),
 ]

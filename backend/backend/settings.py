@@ -161,3 +161,7 @@ AUTH_USER_MODEL = 'users.User'
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Resend Configuration
+RESEND_API_KEY = 're_your_api_key_here'
+DEFAULT_FROM_EMAIL = 'onboarding@resend.dev'  # Update this to your verified domain

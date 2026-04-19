@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { ArrowRight, Truck, Shield, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
@@ -6,6 +7,7 @@ import ProductCard from "@/components/ProductCard";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { products, categories } from "@/lib/mock-data";
+import { ProductCardSkeleton } from "@/components/Skeletons";
 import heroImage from "@/assets/hero-farm.jpg";
 import catFruits from "@/assets/cat-fruits.jpg";
 import catVegetables from "@/assets/cat-vegetables.jpg";
@@ -28,6 +30,15 @@ const features = [
 ];
 
 const Index = () => {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []);
+
   const featured = products.slice(0, 8);
 
   return (
@@ -130,17 +141,23 @@ const Index = () => {
             </Link>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {featured.map((p, i) => (
-              <motion.div
-                key={p.id}
-                initial={{ opacity: 0, y: 15 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <ProductCard product={p} />
-              </motion.div>
-            ))}
+            {isLoading ? (
+              [...Array(4)].map((_, i) => (
+                <ProductCardSkeleton key={i} />
+              ))
+            ) : (
+              featured.map((p, i) => (
+                <motion.div
+                  key={p.id}
+                  initial={{ opacity: 0, y: 15 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.05 }}
+                >
+                  <ProductCard product={p} />
+                </motion.div>
+              ))
+            )}
           </div>
         </div>
       </section>

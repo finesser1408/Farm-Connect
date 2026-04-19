@@ -1,11 +1,20 @@
+from decimal import Decimal, InvalidOperation
+
 from django.shortcuts import get_object_or_404
 from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
 from .models import Product
 from .serializers import ProductSerializer
+
+
+class ProductPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 
 def _ensure_farmer_permission(request, product=None):
@@ -34,6 +43,45 @@ def products_list_create(request):
         available = request.query_params.get('available')
         if available is not None:
             products = products.filter(is_available=available.lower() in ('1', 'true', 'yes'))
+
+        search = request.query_params.get('search')
+        if search:
+            products = products.filter(name__icontains=search)
+
+        category = request.query_params.get('category')
+        if category:
+            products = products.filter(category__slug__iexact=category)
+
+        location = request.query_params.get('location')
+        if location:
+            products = products.filter(farmer__farmer_profile__location__icontains=location)
+
+        price = request.query_params.get('price')
+        if price:
+            try:
+                products = products.filter(price=Decimal(price))
+            except InvalidOperation:
+                return Response({'detail': 'Invalid price filter.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        min_price = request.query_params.get('min_price')
+        if min_price:
+            try:
+                products = products.filter(price__gte=Decimal(min_price))
+            except InvalidOperation:
+                return Response({'detail': 'Invalid min_price filter.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        max_price = request.query_params.get('max_price')
+        if max_price:
+            try:
+                products = products.filter(price__lte=Decimal(max_price))
+            except InvalidOperation:
+                return Response({'detail': 'Invalid max_price filter.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        paginator = ProductPagination()
+        page = paginator.paginate_queryset(products, request)
+        if page is not None:
+            serializer = ProductSerializer(page, many=True, context={'request': request})
+            return paginator.get_paginated_response(serializer.data)
 
         serializer = ProductSerializer(products, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)

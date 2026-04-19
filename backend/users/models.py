@@ -48,7 +48,7 @@ class FarmerProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='farmer_profile')
     farm_name = models.CharField(max_length=255)
     location = models.CharField(max_length=255)
-    bio = models.TextField(blank=True)
+    description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

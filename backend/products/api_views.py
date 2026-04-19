@@ -9,6 +9,7 @@ from rest_framework.response import Response
 
 from .models import Product
 from .serializers import ProductSerializer
+from users.permissions import IsFarmer
 
 
 class ProductPagination(PageNumberPagination):
@@ -17,24 +18,11 @@ class ProductPagination(PageNumberPagination):
     max_page_size = 100
 
 
-def _ensure_farmer_permission(request, product=None):
-    if not request.user.is_authenticated:
-        return Response(
-            {'detail': 'Authentication credentials were not provided.'},
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
-
-    if not getattr(request.user, 'is_farmer', False) or (product is not None and product.farmer != request.user):
-        return Response(
-            {'detail': 'You do not have permission to modify this product.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    return None
+# Removed manual permission check in favor of DRF permission classes
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([permissions.AllowAny])
+@permission_classes([permissions.IsAuthenticatedOrReadOnly])
 @parser_classes([MultiPartParser, FormParser, JSONParser])
 def products_list_create(request):
     """List all products or create a new product."""
@@ -86,9 +74,9 @@ def products_list_create(request):
         serializer = ProductSerializer(products, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    error = _ensure_farmer_permission(request)
-    if error:
-        return error
+    if request.method == 'POST':
+        if not request.user.user_type == 'farmer':
+            return Response({'detail': 'Only farmers can create products.'}, status=status.HTTP_403_FORBIDDEN)
 
     serializer = ProductSerializer(data=request.data, context={'request': request})
     if serializer.is_valid():
@@ -99,7 +87,7 @@ def products_list_create(request):
 
 
 @api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
-@permission_classes([permissions.AllowAny])
+@permission_classes([permissions.IsAuthenticatedOrReadOnly])
 @parser_classes([MultiPartParser, FormParser, JSONParser])
 def product_detail(request, slug):
     """Retrieve, update, or delete a product by slug."""
@@ -109,9 +97,9 @@ def product_detail(request, slug):
         serializer = ProductSerializer(product, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    error = _ensure_farmer_permission(request, product)
-    if error:
-        return error
+    if request.method in ['PUT', 'PATCH', 'DELETE']:
+        if product.farmer != request.user and request.user.user_type != 'admin':
+            return Response({'detail': 'You do not have permission to modify this product.'}, status=status.HTTP_403_FORBIDDEN)
 
     if request.method in ['PUT', 'PATCH']:
         partial = request.method == 'PATCH'

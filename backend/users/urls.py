@@ -9,4 +9,8 @@ urlpatterns = [
     path('logout/', api_views.logout_user, name='logout'),
     path('profile/', api_views.user_profile, name='profile'),
     path('profile/update/', api_views.update_profile, name='update-profile'),
+    
+    # Admin User Management
+    path('admin/users/', api_views.admin_user_list, name='admin-user-list'),
+    path('admin/users/<int:pk>/', api_views.admin_user_detail, name='admin-user-detail'),
 ]

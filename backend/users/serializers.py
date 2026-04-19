@@ -37,7 +37,7 @@ class FarmerProfileSerializer(serializers.ModelSerializer):
     """Serializer for farmer profile"""
     class Meta:
         model = FarmerProfile
-        fields = ['farm_name', 'location', 'bio']
+        fields = ['farm_name', 'location', 'description']
 
 
 class CustomerProfileSerializer(serializers.ModelSerializer):
@@ -56,7 +56,40 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'email', 'username', 'phone', 'user_type', 'is_verified', 
                   'created_at', 'farmer_profile', 'customer_profile']
-        read_only_fields = ['id', 'created_at', 'is_verified']
+        read_only_fields = ['id', 'created_at', 'is_verified', 'user_type']
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating user and profile data"""
+    farmer_profile = FarmerProfileSerializer(required=False)
+    customer_profile = CustomerProfileSerializer(required=False)
+
+    class Meta:
+        model = User
+        fields = ['username', 'phone', 'farmer_profile', 'customer_profile']
+
+    def update(self, instance, validated_data):
+        farmer_profile_data = validated_data.pop('farmer_profile', None)
+        customer_profile_data = validated_data.pop('customer_profile', None)
+
+        # Update user fields
+        instance.username = validated_data.get('username', instance.username)
+        instance.phone = validated_data.get('phone', instance.phone)
+        instance.save()
+
+        # Update profile fields
+        if instance.user_type == 'farmer' and farmer_profile_data:
+            profile, _ = FarmerProfile.objects.get_or_create(user=instance)
+            for attr, value in farmer_profile_data.items():
+                setattr(profile, attr, value)
+            profile.save()
+        elif instance.user_type == 'customer' and customer_profile_data:
+            profile, _ = CustomerProfile.objects.get_or_create(user=instance)
+            for attr, value in customer_profile_data.items():
+                setattr(profile, attr, value)
+            profile.save()
+
+        return instance
 
 
 class LoginSerializer(serializers.Serializer):

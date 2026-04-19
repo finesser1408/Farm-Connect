@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -8,9 +9,11 @@ from django.utils.decorators import method_decorator
 from .serializers import (
     UserRegistrationSerializer, 
     LoginSerializer, 
-    UserSerializer
+    UserSerializer,
+    UserUpdateSerializer
 )
 from .models import User
+from .permissions import IsAdmin, IsFarmer
 
 
 @api_view(['POST'])
@@ -112,44 +115,56 @@ def user_profile(request):
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-@api_view(['PUT'])
+@api_view(['PUT', 'PATCH'])
 @permission_classes([permissions.IsAuthenticated])
 def update_profile(request):
     """
     API endpoint to update user profile
     """
-    user = request.user
-    data = request.data
+    partial = request.method == 'PATCH'
+    serializer = UserUpdateSerializer(request.user, data=request.data, partial=partial)
     
-    # Update basic user info
-    if 'phone' in data:
-        user.phone = data['phone']
-    if 'username' in data:
-        user.username = data['username']
+    if serializer.is_valid():
+        serializer.save()
+        user_serializer = UserSerializer(request.user)
+        return Response({
+            'message': 'Profile updated successfully',
+            'user': user_serializer.data
+        }, status=status.HTTP_200_OK)
     
-    user.save()
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdmin])
+def admin_user_list(request):
+    """
+    API endpoint for admin to list all users
+    """
+    users = User.objects.all().order_by('-created_at')
+    serializer = UserSerializer(users, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'PUT', 'DELETE'])
+@permission_classes([IsAdmin])
+def admin_user_detail(request, pk):
+    """
+    API endpoint for admin to manage a specific user
+    """
+    user = get_object_or_404(User, pk=pk)
     
-    # Update profile based on user type
-    if user.is_farmer and hasattr(user, 'farmer_profile'):
-        profile = user.farmer_profile
-        if 'farm_name' in data:
-            profile.farm_name = data['farm_name']
-        if 'location' in data:
-            profile.location = data['location']
-        if 'bio' in data:
-            profile.bio = data['bio']
-        profile.save()
-    
-    elif user.is_customer and hasattr(user, 'customer_profile'):
-        profile = user.customer_profile
-        if 'address' in data:
-            profile.address = data['address']
-        if 'city' in data:
-            profile.city = data['city']
-        profile.save()
-    
-    serializer = UserSerializer(user)
-    return Response({
-        'message': 'Profile updated successfully',
-        'user': serializer.data
-    }, status=status.HTTP_200_OK)
+    if request.method == 'GET':
+        serializer = UserSerializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+        
+    elif request.method == 'PUT':
+        serializer = UserUpdateSerializer(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(UserSerializer(user).data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+    elif request.method == 'DELETE':
+        user.delete()
+        return Response({'message': 'User deleted successfully'}, status=status.HTTP_204_NO_CONTENT)

@@ -19,6 +19,11 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 
+# ── Admin site branding ──────────────────────
+admin.site.site_header  = '🌿 Farm Fresh Hub Admin'
+admin.site.site_title   = 'Farm Fresh Hub'
+admin.site.index_title  = 'Dashboard – Farm Fresh Hub'
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('users.urls')),

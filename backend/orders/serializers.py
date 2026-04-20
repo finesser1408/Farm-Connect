@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from products.serializers import ProductSerializer
-from .models import Cart, CartItem
+from .models import Cart, CartItem, Order, OrderItem
 
 # --- READ SERIALIZERS (Your original logic) ---
 
@@ -55,12 +55,58 @@ class CartItemUpdateSerializer(serializers.ModelSerializer):
         return cart_item
 
 
-class CartItemRemoveSerializer(serializers.Serializer):
+class CartItemUpdateQuantitySerializer(serializers.ModelSerializer):
     """
-    Used purely for validating a removal request by product ID.
+    Used for updating the quantity of an existing item in the cart.
+    The product and price remain fixed.
     """
-    product_id = serializers.IntegerField()
+    class Meta:
+        model = CartItem
+        fields = ['quantity']
 
-    def validate_product_id(self, value):
-        # Optional: Add check if product actually exists in DB
+    def validate_quantity(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Quantity must be greater than zero.")
         return value
+
+class CartItemDetailSerializer(serializers.ModelSerializer):
+    """
+    Detailed view for getting a single cart item or listing them.
+    """
+    product = ProductSerializer(read_only=True)
+    total_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = CartItem
+        fields = ['id', 'product', 'quantity', 'price', 'total_price']
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
+    total_price = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'product', 'price', 'quantity', 'total_price']
+
+    def get_total_price(self, obj):
+        return obj.get_cost()
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True, read_only=True)
+    customer = serializers.CharField(source='customer.email', read_only=True)
+
+    class Meta:
+        model = Order
+        fields = ['id', 'customer', 'first_name', 'last_name', 'email', 'address', 'postal_code', 'city', 'total_amount', 'status', 'created_at', 'updated_at', 'items']
+        read_only_fields = ['id', 'customer', 'total_amount', 'created_at', 'updated_at', 'items']
+
+
+class OrderCreateSerializer(serializers.Serializer):
+    first_name = serializers.CharField(max_length=50)
+    last_name = serializers.CharField(max_length=50)
+    email = serializers.EmailField()
+    address = serializers.CharField(max_length=250)
+    postal_code = serializers.CharField(max_length=20)
+    city = serializers.CharField(max_length=100)

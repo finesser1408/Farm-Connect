@@ -19,7 +19,7 @@ from .permissions import IsAdmin, IsFarmer
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
-from backend.utils.emails import send_resend_email
+from backend.email_service import email_service
 
 
 @api_view(['POST'])
@@ -32,6 +32,23 @@ def register_user(request):
     
     if serializer.is_valid():
         user = serializer.save()
+        
+        # Send welcome email
+        try:
+            email_result = email_service.send_welcome_email(
+                user_email=user.email,
+                user_name=user.get_full_name() or user.email.split('@')[0]
+            )
+            
+            if not email_result['success']:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to send welcome email: {email_result['message']}")
+        
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error sending welcome email: {str(e)}")
         
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
@@ -193,17 +210,13 @@ def password_reset_request(request):
             # In a real app, this would be a link to your frontend
             reset_url = f"https://farmfreshhub.com/password-reset/confirm/{uid}/{token}/"
             
-            subject = "Password Reset Request - Farm Fresh Hub"
-            html_content = f"""
-                <p>Hello,</p>
-                <p>You requested a password reset for your Farm Fresh Hub account.</p>
-                <p>Click the link below to reset your password:</p>
-                <a href="{reset_url}">{reset_url}</a>
-                <p>If you did not request this, please ignore this email.</p>
-            """
+            email_result = email_service.send_password_reset(
+                user_email=email,
+                user_name=user.get_full_name() or email.split('@')[0],
+                reset_link=reset_url
+            )
             
-            success = send_resend_email(email, subject, html_content)
-            if success:
+            if email_result['success']:
                 return Response({'message': 'Password reset email sent'}, status=status.HTTP_200_OK)
             else:
                 return Response({'error': 'Failed to send email'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

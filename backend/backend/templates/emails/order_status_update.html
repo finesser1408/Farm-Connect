@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Update - Farm Fresh Hub</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #2c5f2d;
+            padding-bottom: 20px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c5f2d;
+            margin-bottom: 10px;
+        }
+        .order-number {
+            background-color: #2c5f2d;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 18px;
+            font-weight: bold;
+            display: inline-block;
+            margin: 10px 0;
+        }
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            margin: 10px 0;
+            display: inline-block;
+        }
+        .status-processing { background-color: #ff9800; }
+        .status-shipped { background-color: #2196f3; }
+        .status-delivered { background-color: #4caf50; }
+        .status-cancelled { background-color: #f44336; }
+        .update-content {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #2c5f2d;
+        }
+        .timeline {
+            margin: 20px 0;
+            padding-left: 20px;
+        }
+        .timeline-item {
+            margin-bottom: 15px;
+            position: relative;
+        }
+        .timeline-item::before {
+            content: "✓";
+            background-color: #2c5f2d;
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: inline-block;
+            text-align: center;
+            line-height: 20px;
+            margin-right: 10px;
+            font-size: 12px;
+        }
+        .cta-button {
+            display: inline-block;
+            background-color: #2c5f2d;
+            color: white;
+            padding: 12px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🌱 Farm Fresh Hub</div>
+            <h1>Order Status Update</h1>
+            <div class="order-number">Order #{{ order_id }}</div>
+            <div class="status-badge status-{{ status }}">{{ status|title }}</div>
+        </div>
+        
+        <h2>Hello {{ user_name }},</h2>
+        
+        <div class="update-content">
+            <h3>Your order has been {{ status }}!</h3>
+            
+            {% if status == 'processing' %}
+                <p>Great news! Your order is now being prepared by our farmers. We're carefully selecting the freshest produce for your order.</p>
+            {% elif status == 'shipped' %}
+                <p>Exciting! Your order is on its way! You'll receive your fresh produce soon. Track your delivery for real-time updates.</p>
+            {% elif status == 'delivered' %}
+                <p>Wonderful! Your order has been delivered. We hope you enjoy your fresh produce! Please consider leaving a review for the products.</p>
+            {% elif status == 'cancelled' %}
+                <p>Your order has been cancelled. If you didn't request this cancellation, please contact our support team immediately.</p>
+            {% endif %}
+        </div>
+        
+        <h3>Order Timeline</h3>
+        <div class="timeline">
+            <div class="timeline-item">Order placed</div>
+            {% if status != 'pending' %}
+            <div class="timeline-item">Order confirmed</div>
+            {% endif %}
+            {% if status == 'processing' or status == 'shipped' or status == 'delivered' %}
+            <div class="timeline-item">Processing started</div>
+            {% endif %}
+            {% if status == 'shipped' or status == 'delivered' %}
+            <div class="timeline-item">Order shipped</div>
+            {% endif %}
+            {% if status == 'delivered' %}
+            <div class="timeline-item">Order delivered</div>
+            {% endif %}
+            {% if status == 'cancelled' %}
+            <div class="timeline-item">Order cancelled</div>
+            {% endif %}
+        </div>
+        
+        {% if status == 'shipped' %}
+        <div class="update-content">
+            <h3>Tracking Information</h3>
+            <p>You can track your order in real-time through your account dashboard or by clicking the button below.</p>
+            <div style="text-align: center;">
+                <a href="https://farmfreshhub.com/orders/{{ order_id }}" class="cta-button">Track Order</a>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if status == 'delivered' %}
+        <div class="update-content">
+            <h3>Rate Your Experience</h3>
+            <p>We'd love to hear about your experience! Your feedback helps us improve and supports our farmers.</p>
+            <div style="text-align: center;">
+                <a href="https://farmfreshhub.com/orders/{{ order_id }}/review" class="cta-button">Leave a Review</a>
+            </div>
+        </div>
+        {% endif %}
+        
+        <p>Have questions about your order? Reply to this email or contact our support team at support@farmfreshhub.com</p>
+        
+        <div class="footer">
+            <p>Thank you for choosing Farm Fresh Hub!</p>
+            <p>The Farm Fresh Hub Team</p>
+            <p>🌱 Fresh • Local • Sustainable</p>
+        </div>
+    </div>
+</body>
+</html>

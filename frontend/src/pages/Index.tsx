@@ -18,9 +18,10 @@ import catLivestock from "@/assets/cat-livestock.jpg";
 const categoryImages: Record<string, string> = {
   fruits: catFruits,
   vegetables: catVegetables,
-  grains: catGrains,
-  dairy: catDairy,
-  livestock: catLivestock,
+  'dairy-eggs': catDairy,
+  'herbs-spices': catGrains,
+  'honey-preserves': catDairy,
+  'grains-cereals': catGrains,
 };
 
 const features = [

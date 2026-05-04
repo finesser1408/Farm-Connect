@@ -22,6 +22,9 @@ const categoryImages: Record<string, string> = {
   'herbs-spices': catGrains,
   'honey-preserves': catDairy,
   'grains-cereals': catGrains,
+  grains: catGrains,
+  dairy: catDairy,
+  livestock: catLivestock,
 };
 
 const features = [
@@ -70,7 +73,7 @@ const Index = () => {
                 </Button>
               </Link>
               <Link to="/register">
-                <Button size="lg" variant="outline" className="border-primary-foreground/30 font-semibold text-primary-foreground hover:bg-primary-foreground/10">
+                <Button size="lg" className="bg-accent text-accent-foreground font-semibold hover:bg-accent/90 shadow-sm transition-transform hover:scale-[1.02]">
                   Sell Your Produce
                 </Button>
               </Link>

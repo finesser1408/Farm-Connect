@@ -65,7 +65,6 @@ class CartItemRemoveSerializer(serializers.Serializer):
         # Optional: Add check if product actually exists in DB
         return value
 
-
 # --- ORDER SERIALIZERS ---
 
 class OrderItemSerializer(serializers.ModelSerializer):

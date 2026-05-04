@@ -9,11 +9,14 @@ class CategorySerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    farmer = serializers.CharField(source='farmer.email', read_only=True)
+    farmer_email = serializers.EmailField(source='farmer.email', read_only=True)
+    farmer_name = serializers.SerializerMethodField()
+    category_details = CategorySerializer(source='category', read_only=True)
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(),
         allow_null=True,
         required=False,
+        write_only=True
     )
     image = serializers.ImageField(required=False, allow_null=True)
 
@@ -21,8 +24,10 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id',
-            'farmer',
+            'farmer_email',
+            'farmer_name',
             'category',
+            'category_details',
             'name',
             'slug',
             'description',
@@ -33,4 +38,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'farmer', 'created_at', 'updated_at', 'is_available']
+        read_only_fields = ['id', 'farmer_email', 'farmer_name', 'category_details', 'created_at', 'updated_at', 'is_available']
+
+    def get_farmer_name(self, obj):
+        return f"{obj.farmer.first_name} {obj.farmer.last_name}".strip() or obj.farmer.email

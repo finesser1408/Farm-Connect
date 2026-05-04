@@ -19,9 +19,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user) {
-      if (user.role === "farmer") {
+      if (user.user_type === "farmer") {
         navigate("/farmer");
-      } else if (user.role === "admin") {
+      } else if (user.user_type === "admin") {
         navigate("/admin");
       } else {
         navigate("/customer/dashboard");
@@ -29,13 +29,13 @@ export default function LoginPage() {
     }
   }, [user, navigate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = login(email, password);
+    const success = await login(email, password);
     if (success) {
       toast({ title: "Welcome back!", description: "You have been signed in." });
     } else {
-      toast({ title: "Login failed", description: "Invalid email or password. Try customer@test.com / password", variant: "destructive" });
+      toast({ title: "Login failed", description: "Invalid email or password.", variant: "destructive" });
     }
   };
 

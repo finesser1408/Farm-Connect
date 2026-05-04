@@ -115,3 +115,12 @@ def product_detail(request, slug):
             {'message': 'Product deleted successfully.'},
             status=status.HTTP_204_NO_CONTENT,
         )
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def category_list(request):
+    """List all categories."""
+    categories = Category.objects.all()
+    serializer = CategorySerializer(categories, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)

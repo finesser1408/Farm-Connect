@@ -12,6 +12,7 @@ from django.template.loader import render_to_string
 from django.core.mail import send_mail
 import logging
 import os
+import requests
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -92,34 +93,43 @@ class EmailService:
     
     def send_email_resend(self, to_email, subject, html_content=None, text_content=None):
         """
-        Send email using Resend API
-        
-        Args:
-            to_email (str): Recipient email address
-            subject (str): Email subject
-            html_content (str): HTML email content (optional)
-            text_content (str): Plain text email content (optional)
-            
-        Returns:
-            dict: Success status and message
+        Send email using Resend API directly
         """
         try:
-            if not settings.RESEND_API_KEY:
+            api_key = os.environ.get('RESEND_API_KEY')
+            if not api_key:
                 logger.error("Resend API key not configured")
                 return {'success': False, 'message': 'Resend API key not configured'}
             
-            # Use Django's send_mail which can be configured to use Resend
-            send_mail(
-                subject=subject,
-                message=text_content or '',
-                from_email=self.from_email,
-                recipient_list=[to_email],
-                html_message=html_content,
-                fail_silently=False,
-            )
+            payload = {
+                "from": self.from_email,
+                "to": [to_email],
+                "subject": subject,
+            }
             
-            logger.info(f"Email sent successfully via Resend to {to_email}")
-            return {'success': True, 'message': 'Email sent successfully'}
+            if html_content:
+                payload["html"] = html_content
+            if text_content:
+                payload["text"] = text_content
+
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+
+            response = requests.post(
+                "https://api.resend.com/emails",
+                json=payload,
+                headers=headers
+            )
+
+            if response.status_code in [200, 201]:
+                logger.info(f"Email sent successfully via Resend to {to_email}")
+                return {'success': True, 'message': 'Email sent successfully'}
+            else:
+                error_data = response.json()
+                logger.error(f"Resend API error: {error_data}")
+                return {'success': False, 'message': f"Resend API error: {error_data.get('message', 'Unknown error')}"}
             
         except Exception as e:
             logger.error(f"Failed to send email via Resend: {str(e)}")

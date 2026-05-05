@@ -38,6 +38,10 @@ export default function RegisterPage() {
       return;
     }
     
+    const nameParts = form.name.trim().split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+
     const registrationData = {
       email: form.email,
       username: form.email, // Using email as username
@@ -45,6 +49,8 @@ export default function RegisterPage() {
       password_confirm: form.confirm,
       phone: form.phone,
       user_type: role,
+      first_name: firstName,
+      last_name: lastName,
     };
 
     const success = await register(registrationData);

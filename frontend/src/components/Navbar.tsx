@@ -47,10 +47,10 @@ export default function Navbar() {
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-1.5">
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium">
-                  {user.first_name.charAt(0).toUpperCase()}
+                  {(user.first_name || user.username || "U").charAt(0).toUpperCase()}
                 </div>
                 <span className="hidden text-sm font-medium text-foreground sm:block">
-                  {user.first_name}
+                  {user.first_name || user.username}
                 </span>
               </div>
               <Button

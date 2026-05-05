@@ -9,6 +9,10 @@ import { useCart } from "@/lib/cart-context";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
+import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/hooks/use-toast";
+import { orderService } from "@/lib/services/order-service";
+
 const steps = [
   { id: 1, label: "Delivery", icon: MapPin },
   { id: 2, label: "Payment", icon: CreditCard },
@@ -18,14 +22,45 @@ const steps = [
 export default function CheckoutPage() {
   const { items, totalPrice, clearCart } = useCart();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("ecocash");
   const [delivery, setDelivery] = useState({ address: "", city: "", phone: "" });
   const deliveryCost = 5.0;
 
-  const handleConfirm = () => {
-    clearCart();
-    navigate("/order-success");
+  const handleConfirm = async () => {
+    if (!user) {
+      toast({ title: "Session expired", description: "Please log in again.", variant: "destructive" });
+      navigate("/login");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await orderService.createOrder({
+        first_name: user.first_name || "Customer",
+        last_name: user.last_name || "User",
+        email: user.email,
+        address: delivery.address,
+        city: delivery.city,
+        postal_code: "0000",
+      });
+      
+      clearCart();
+      navigate("/order-success");
+      toast({ title: "Order placed!", description: "Check your email for confirmation." });
+    } catch (error: any) {
+      console.error("Order failed", error);
+      toast({ 
+        title: "Order failed", 
+        description: error.response?.data?.detail || "Something went wrong. Please try again.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (items.length === 0) {

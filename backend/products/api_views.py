@@ -7,8 +7,9 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
-from .models import Product
-from .serializers import ProductSerializer
+from django.utils.text import slugify
+from .models import Product, Category
+from .serializers import ProductSerializer, CategorySerializer
 from users.permissions import IsFarmer
 
 
@@ -65,6 +66,13 @@ def products_list_create(request):
             except InvalidOperation:
                 return Response({'detail': 'Invalid max_price filter.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Filtering by farmer
+        farmer_filter = request.query_params.get('farmer')
+        if farmer_filter == 'me' and request.user.is_authenticated:
+            products = products.filter(farmer=request.user)
+        elif farmer_filter:
+            products = products.filter(farmer__email=farmer_filter)
+
         paginator = ProductPagination()
         page = paginator.paginate_queryset(products, request)
         if page is not None:
@@ -75,15 +83,25 @@ def products_list_create(request):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     if request.method == 'POST':
-        if not request.user.user_type == 'farmer':
+        if not request.user.is_authenticated or (request.user.user_type != 'farmer' and not request.user.is_staff):
             return Response({'detail': 'Only farmers can create products.'}, status=status.HTTP_403_FORBIDDEN)
-
-    serializer = ProductSerializer(data=request.data, context={'request': request})
-    if serializer.is_valid():
-        serializer.save(farmer=request.user)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        serializer = ProductSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            # Automatically generate slug
+            name = serializer.validated_data.get('name')
+            slug = slugify(name)
+            
+            # Ensure unique slug
+            original_slug = slug
+            counter = 1
+            while Product.objects.filter(slug=slug).exists():
+                slug = f"{original_slug}-{counter}"
+                counter += 1
+                
+            serializer.save(farmer=request.user, slug=slug)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET', 'PUT', 'PATCH', 'DELETE'])

@@ -6,6 +6,7 @@ export type UserRole = "customer" | "farmer" | "admin";
 export interface User {
   id: number;
   email: string;
+  username: string;
   first_name: string;
   last_name: string;
   user_type: UserRole;

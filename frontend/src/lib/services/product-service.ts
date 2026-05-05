@@ -48,4 +48,13 @@ export const productService = {
     const response = await apiClient.get<Category[]>("/products/categories/");
     return response.data;
   },
+
+  createProduct: async (data: FormData | any) => {
+    const response = await apiClient.post<Product>("/products/", data);
+    return response.data;
+  },
+
+  deleteProduct: async (slug: string) => {
+    await apiClient.delete(`/products/${slug}/`);
+  },
 };

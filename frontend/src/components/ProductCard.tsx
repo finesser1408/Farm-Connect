@@ -14,7 +14,7 @@ export default function ProductCard({ product }: { product: Product }) {
       id: product.id.toString(),
       name: product.name,
       price: parseFloat(product.price),
-      image: product.image || undefined,
+      image: product.image || "",
       farmer: product.farmer_name,
     });
   };

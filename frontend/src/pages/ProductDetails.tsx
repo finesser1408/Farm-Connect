@@ -27,7 +27,8 @@ export default function ProductDetails() {
     enabled: !!product?.category_details?.slug,
   });
 
-  const related = (relatedProducts || []).filter((p: any) => p.slug !== slug).slice(0, 4);
+  const productsArray = Array.isArray(relatedProducts) ? relatedProducts : relatedProducts?.results || [];
+  const related = productsArray.filter((p: any) => p.slug !== slug).slice(0, 4);
 
   if (isLoading) {
     return (
@@ -62,7 +63,13 @@ export default function ProductDetails() {
 
   const handleAdd = () => {
     for (let i = 0; i < qty; i++) {
-      addItem({ id: product.id, name: product.name, price: product.price, image: product.image, farmer: product.farmer });
+      addItem({ 
+        id: String(product.id), 
+        name: product.name, 
+        price: parseFloat(product.price), 
+        image: product.image || "", 
+        farmer: product.farmer_name 
+      });
     }
   };
 

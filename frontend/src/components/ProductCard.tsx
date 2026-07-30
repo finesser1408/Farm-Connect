@@ -1,3 +1,4 @@
+ // src/components/ProductCard.tsx
 import { ShoppingCart, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart-context";
@@ -24,15 +25,28 @@ export default function ProductCard({ product }: { product: Product }) {
       to={`/product/${product.id}`}
       className="group flex flex-col overflow-hidden rounded-lg border border-border bg-card shadow-card transition-shadow hover:shadow-card-hover"
     >
+      {/* IMAGE SECTION */}
       <div className="relative aspect-square overflow-hidden bg-muted">
-        <div className="flex h-full items-center justify-center bg-muted text-6xl transition-transform duration-500 group-hover:scale-110">
-          {product.category === "fruits" && "🍓"}
-          {product.category === "vegetables" && "🥬"}
-          {product.category === "grains" && "🌾"}
-          {product.category === "dairy" && "🧀"}
-          {product.category === "livestock" && "🥚"}
-        </div>
+        <img
+          src={product.image}
+          alt={product.name}
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          onError={(e) => {
+            // If image fails to load, show a colored background with product name
+            e.currentTarget.style.display = 'none';
+            const parent = e.currentTarget.parentElement;
+            if (parent) {
+              parent.style.backgroundColor = '#e5e7eb';
+              parent.innerHTML = `
+                <div class="flex h-full w-full items-center justify-center text-center p-4">
+                  <span class="text-sm font-medium text-gray-600">${product.name}</span>
+                </div>
+              `;
+            }
+          }}
+        />
       </div>
+      
       <div className="flex flex-1 flex-col p-4">
         <span className="mb-1 text-xs font-medium uppercase tracking-wide text-primary">{product.category}</span>
         <h3 className="font-display text-base text-foreground group-hover:text-primary">{product.name}</h3>
@@ -41,7 +55,7 @@ export default function ProductCard({ product }: { product: Product }) {
           {product.farmer} · {product.farmLocation}
         </div>
         <div className="mt-auto flex items-center justify-between pt-3">
-          <span className="text-lg font-bold text-foreground">${product.price.toFixed(2)}</span>
+          <span className="text-lg font-bold text-foreground">$ {product.price.toFixed(2)}</span>
           <Button size="sm" onClick={handleAdd} className="gap-1.5">
             <ShoppingCart className="h-3.5 w-3.5" /> Add
           </Button>

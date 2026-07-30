@@ -38,6 +38,8 @@ const AdminReports = lazy(() => import("./pages/admin/AdminReports"));
 const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+const About = lazy(() => import("./pages/About"));
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -59,6 +61,7 @@ const App = () => (
                 <Route path="/order-success" element={<OrderSuccessPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/about" element={<About />} />
                 <Route path="/customer" element={<CustomerDashboard />} />
                 <Route path="/customer/orders" element={<CustomerOrders />} />
                 <Route path="/customer/orders/:orderId" element={<OrderTracking />} />

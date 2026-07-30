@@ -50,9 +50,16 @@ export default function ProductDetails() {
 
         <div className="grid gap-8 md:grid-cols-2">
           {/* Image */}
-          <div className="flex aspect-square items-center justify-center rounded-lg bg-muted text-[120px]">
-            {emoji[product.category] || "🌿"}
-          </div>
+           <div className="aspect-square overflow-hidden rounded-lg bg-muted">
+  <img
+    src={product.image}
+    alt={product.name}
+    className="h-full w-full object-cover"
+    onError={(e) => {
+      e.currentTarget.src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&h=400&fit=crop&auto=format';
+    }}
+  />
+</div>
 
           {/* Info */}
           <div className="flex flex-col">

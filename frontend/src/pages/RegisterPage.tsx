@@ -19,26 +19,46 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (user) {
-      if (user.role === "farmer") {
+      if (user.user_type === "farmer") {
         navigate("/farmer");
-      } else if (user.role === "admin") {
+      } else if (user.user_type === "admin") {
         navigate("/admin");
       } else {
-        navigate("/customer/dashboard");
+        navigate("/customer");
       }
     }
   }, [user, navigate]);
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.password !== form.confirm) {
       toast({ title: "Passwords don't match", variant: "destructive" });
       return;
     }
-    register({ name: form.name, email: form.email, phone: form.phone, role, farmName: form.farmName || undefined, farmLocation: form.location || undefined }, form.password);
-    toast({ title: "Account created!", description: "Welcome to Farm Connect." });
+    
+    const nameParts = form.name.trim().split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+
+    const registrationData = {
+      email: form.email,
+      username: form.email, // Using email as username
+      password: form.password,
+      password_confirm: form.confirm,
+      phone: form.phone,
+      user_type: role,
+      first_name: firstName,
+      last_name: lastName,
+    };
+
+    const success = await register(registrationData);
+    if (success) {
+      toast({ title: "Account created!", description: "Welcome to Farm Connect." });
+    } else {
+      toast({ title: "Registration failed", description: "Check your details and try again.", variant: "destructive" });
+    }
   };
 
   return (

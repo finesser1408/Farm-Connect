@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import ProductCard from "@/components/ProductCard";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { products, categories } from "@/lib/mock-data";
+import { useQuery } from "@tanstack/react-query";
+import { productService } from "@/lib/services/product-service";
 import { ProductCardSkeleton } from "@/components/Skeletons";
 
 export default function Marketplace() {
@@ -14,26 +15,27 @@ export default function Marketplace() {
   const [search, setSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulate initial data loading
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, []);
-
   const activeCategory = searchParams.get("category") || "";
 
-  const filtered = useMemo(() => {
-    let result = products;
-    if (activeCategory) result = result.filter((p) => p.category === activeCategory);
-    if (search) result = result.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || p.farmer.toLowerCase().includes(search.toLowerCase()));
-    if (sortBy === "price-asc") result = [...result].sort((a, b) => a.price - b.price);
-    if (sortBy === "price-desc") result = [...result].sort((a, b) => b.price - a.price);
-    return result;
-  }, [activeCategory, search, sortBy]);
+  const { data: productsData, isLoading: isProductsLoading } = useQuery({
+    queryKey: ["products", activeCategory, search, sortBy],
+    queryFn: () => productService.getProducts({
+      category: activeCategory,
+      search: search,
+      ordering: sortBy === "price-asc" ? "price" : sortBy === "price-desc" ? "-price" : "-created_at"
+    }),
+  });
+
+  const { data: categoriesData, isLoading: isCategoriesLoading } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => productService.getCategories(),
+  });
+
+  const filtered = productsData 
+    ? (Array.isArray(productsData) ? productsData : productsData.results)
+    : [];
+  const categoriesList = categoriesData || [];
+  const isLoading = isProductsLoading || isCategoriesLoading;
 
   const setCategory = (slug: string) => {
     if (slug === activeCategory) {
@@ -88,7 +90,7 @@ export default function Marketplace() {
                 )}
               </div>
               <div className="flex flex-col gap-1">
-                {categories.map((cat) => (
+                {categoriesList.map((cat) => (
                   <button
                     key={cat.slug}
                     onClick={() => setCategory(cat.slug)}

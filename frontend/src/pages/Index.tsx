@@ -6,7 +6,8 @@ import { motion } from "framer-motion";
 import ProductCard from "@/components/ProductCard";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { products, categories } from "@/lib/mock-data";
+import { useQuery } from "@tanstack/react-query";
+import { productService } from "@/lib/services/product-service";
 import { ProductCardSkeleton } from "@/components/Skeletons";
 import heroImage from "@/assets/farm-fresh2.jpg";
 import catFruits from "@/assets/cat-fruits.jpg";
@@ -23,6 +24,9 @@ const categoryImages: Record<string, string> = {
   'herbs-spices': catHerbs,
   'honey-preserves': catHoney,
   'grains-cereals': catGrains,
+  grains: catGrains,
+  dairy: catDairy,
+  livestock: catLivestock,
 };
 
 // Updated features with better descriptions and icons
@@ -40,16 +44,21 @@ const testimonials = [
 ];
 
 const Index = () => {
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: productsData, isLoading: isProductsLoading } = useQuery({
+    queryKey: ["products", "featured"],
+    queryFn: () => productService.getProducts({ page_size: 8 }),
+  });
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
+  const { data: categoriesData, isLoading: isCategoriesLoading } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => productService.getCategories(),
+  });
 
-  const featured = products.slice(0, 8);
+  const featured = productsData 
+    ? (Array.isArray(productsData) ? productsData : productsData.results)
+    : [];
+  const categoriesList = categoriesData || [];
+  const isLoading = isProductsLoading || isCategoriesLoading;
 
   // Fade-up animation variants for cleaner code
   const fadeUp = {
@@ -216,7 +225,7 @@ const Index = () => {
           </motion.div>
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {categories.map((cat, i) => (
+            {categoriesList.map((cat, i) => (
               <motion.div
                 key={cat.slug}
                 initial={{ opacity: 0, scale: 0.9 }}

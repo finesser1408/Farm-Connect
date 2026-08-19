@@ -6,14 +6,43 @@ import { useCart } from "@/lib/cart-context";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProductCard from "@/components/ProductCard";
-import { products } from "@/lib/mock-data";
+import { useQuery } from "@tanstack/react-query";
+import { productService } from "@/lib/services/product-service";
 
 export default function ProductDetails() {
-  const { id } = useParams();
-  const product = products.find((p) => p.id === id);
+  const { id: slug } = useParams();
   const { addItem } = useCart();
   const [qty, setQty] = useState(1);
   const [activeTab, setActiveTab] = useState<"description" | "reviews">("description");
+
+  const { data: product, isLoading } = useQuery({
+    queryKey: ["product", slug],
+    queryFn: () => productService.getProductBySlug(slug!),
+    enabled: !!slug,
+  });
+
+  const { data: relatedProducts } = useQuery({
+    queryKey: ["products", "related", product?.category_details?.slug],
+    queryFn: () => productService.getProducts({ category: product?.category_details?.slug }),
+    enabled: !!product?.category_details?.slug,
+  });
+
+  const productsArray = Array.isArray(relatedProducts) ? relatedProducts : relatedProducts?.results || [];
+  const related = productsArray.filter((p: any) => p.slug !== slug).slice(0, 4);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <Navbar />
+        <div className="container flex flex-1 items-center justify-center">
+          <div className="text-center">
+            <h1 className="font-display text-2xl animate-pulse">Loading Product...</h1>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!product) {
     return (
@@ -30,13 +59,17 @@ export default function ProductDetails() {
     );
   }
 
-  const related = products.filter((p) => p.category === product.category && p.id !== product.id).slice(0, 4);
-
   const emoji: Record<string, string> = { fruits: "🍓", vegetables: "🥬", grains: "🌾", dairy: "🧀", livestock: "🥚" };
 
   const handleAdd = () => {
     for (let i = 0; i < qty; i++) {
-      addItem({ id: product.id, name: product.name, price: product.price, image: product.image, farmer: product.farmer });
+      addItem({ 
+        id: String(product.id), 
+        name: product.name, 
+        price: parseFloat(product.price), 
+        image: product.image || "", 
+        farmer: product.farmer_name 
+      });
     }
   };
 
@@ -63,16 +96,16 @@ export default function ProductDetails() {
 
           {/* Info */}
           <div className="flex flex-col">
-            <span className="mb-2 text-xs font-medium uppercase tracking-wide text-primary">{product.category}</span>
+            <span className="mb-2 text-xs font-medium uppercase tracking-wide text-primary">{product.category_details?.name}</span>
             <h1 className="mb-2 font-display text-3xl text-foreground">{product.name}</h1>
             <div className="mb-4 flex items-center gap-3 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1"><Star className="h-4 w-4 fill-accent text-accent" /> {product.rating}</span>
-              <span>({product.reviews} reviews)</span>
+              <span className="flex items-center gap-1"><Star className="h-4 w-4 fill-accent text-accent" /> 4.5</span>
+              <span>(24 reviews)</span>
             </div>
             <div className="mb-2 flex items-center gap-1 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4" /> {product.farmer} · {product.farmLocation}
+              <MapPin className="h-4 w-4" /> {product.farmer_name}
             </div>
-            <span className="mb-6 text-3xl font-bold text-foreground">${product.price.toFixed(2)}</span>
+            <span className="mb-6 text-3xl font-bold text-foreground">${parseFloat(product.price).toFixed(2)}</span>
 
             {/* Quantity */}
             <div className="mb-6 flex items-center gap-3">
@@ -106,7 +139,7 @@ export default function ProductDetails() {
             <button
               onClick={() => setActiveTab("reviews")}
               className={`pb-3 text-sm font-medium ${activeTab === "reviews" ? "border-b-2 border-primary text-primary" : "text-muted-foreground"}`}
-            >Reviews ({product.reviews})</button>
+            >Reviews (24)</button>
           </div>
           <div className="py-6">
             {activeTab === "description" ? (

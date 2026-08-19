@@ -18,8 +18,19 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
+from django.shortcuts import render
+
+def api_root(request):
+    return render(request, 'index.html')
+
+
+# ── Admin site branding ──────────────────────
+admin.site.site_header  = '🌿 Farm Fresh Hub Admin'
+admin.site.site_title   = 'Farm Fresh Hub'
+admin.site.index_title  = 'Dashboard – Farm Fresh Hub'
 
 urlpatterns = [
+    path('', api_root, name='api-root'),
     path('admin/', admin.site.urls),
     path('api/v1/auth/', include('users.urls')),
     path('api/v1/products/', include('products.urls')),

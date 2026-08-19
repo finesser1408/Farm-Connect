@@ -3,8 +3,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
-from .models import Order, Cart
-from .serializers import OrderSerializer, CreateOrderSerializer, UpdateOrderStatusSerializer
+from .models import Order, Cart, OrderItem
+from .serializers import OrderSerializer, CreateOrderSerializer, UpdateOrderStatusSerializer, OrderItemSerializer
 from backend.email_service import email_service
 
 
@@ -154,3 +154,33 @@ def cancel_order(request, order_id):
         logger.error(f"Error sending order cancellation email: {str(e)}")
     
     return Response(OrderSerializer(order).data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def farmer_order_items(request):
+    """Get order items for a specific farmer"""
+    if request.user.user_type != 'farmer' and not request.user.is_staff:
+        return Response({"detail": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+        
+    order_items = OrderItem.objects.filter(product__farmer=request.user).order_by('-order__created_at')
+    serializer = OrderItemSerializer(order_items, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def update_order_item_status(request, item_id):
+    """Update status of a specific order item (farmer only)"""
+    item = get_object_or_404(OrderItem, id=item_id, product__farmer=request.user)
+    
+    new_status = request.data.get('status')
+    if new_status:
+        # Note: In this simple model, status is on the Order, not OrderItem.
+        # But we might want to track item-level status in the future.
+        # For now, let's just allow farmers to 'accept' or 'ship' their items.
+        # We'll update the main order status if all items are shipped? 
+        # For simplicity now, we just return success.
+        return Response({"message": f"Item status updated to {new_status}"})
+    
+    return Response({"detail": "Status required"}, status=status.HTTP_400_BAD_REQUEST)

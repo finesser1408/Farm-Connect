@@ -47,10 +47,10 @@ export default function Navbar() {
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-1.5">
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium">
-                  {user.name.charAt(0).toUpperCase()}
+                  {(user.first_name || user.username || "U").charAt(0).toUpperCase()}
                 </div>
                 <span className="hidden text-sm font-medium text-foreground sm:block">
-                  {user.name}
+                  {user.first_name || user.username}
                 </span>
               </div>
               <Button
@@ -86,7 +86,7 @@ export default function Navbar() {
             {user ? (
               <>
                 <Link 
-                  to={user.role === "farmer" ? "/farmer" : "/customer/dashboard"} 
+                  to={user.user_type === "farmer" ? "/farmer" : user.user_type === "admin" ? "/admin" : "/customer"} 
                   onClick={() => setMobileOpen(false)} 
                   className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
                 >

@@ -3,7 +3,7 @@ from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import login, logout
+from django.contrib.auth import authenticate, login, logout  # ✅ Added 'authenticate'
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from .serializers import (
@@ -68,37 +68,57 @@ def register_user(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+# ===== FIXED LOGIN VIEW =====
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
-@method_decorator(csrf_exempt, name='dispatch')
+@csrf_exempt
 def login_user(request):
     """
-    API endpoint for user login
+    API endpoint for user login using email and password.
     """
-    serializer = LoginSerializer(data=request.data)
+    print("🔥 login_user called!")  # Debugging: Check if the view is being hit
+
+    email = request.data.get('email')
+    password = request.data.get('password')
+
+    # 1. Validate that email and password are provided
+    if not email or not password:
+        return Response(
+            {'error': 'Email and password are required.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 2. Authenticate the user using the email as the username
+    #    (Django's default authenticate uses 'username' field)
+    user = authenticate(username=email, password=password)
+
+    # 3. Check if authentication failed or user is inactive
+    if user is None:
+        return Response(
+            {'error': 'Invalid credentials.'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
     
-    if serializer.is_valid():
-        user = serializer.validated_data['user']
-        
-        # Log in the user (for session)
-        login(request, user)
-        
-        # Generate JWT tokens
-        refresh = RefreshToken.for_user(user)
-        access_token = str(refresh.access_token)
-        
-        # Get user data
-        user_serializer = UserSerializer(user)
-        
-        return Response({
-            'message': 'Login successful',
-            'user': user_serializer.data,
-            'access': access_token,
-            'refresh': str(refresh),
-            'user_type': user.user_type
-        }, status=status.HTTP_200_OK)
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    if not user.is_active:
+        return Response(
+            {'error': 'User account is disabled.'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    # 4. Login successful - Generate JWT tokens
+    refresh = RefreshToken.for_user(user)
+    access_token = str(refresh.access_token)
+
+    # 5. Serialize user data for response
+    user_serializer = UserSerializer(user)
+
+    return Response({
+        'message': 'Login successful',
+        'user': user_serializer.data,
+        'access': access_token,
+        'refresh': str(refresh),
+        'user_type': user.user_type
+    }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])

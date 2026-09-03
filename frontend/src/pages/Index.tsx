@@ -16,6 +16,7 @@ import catGrains from "@/assets/cat-grains.jpg";
 import catDairy from "@/assets/cat-dairy.jpg";
  import catHoney from "@/assets/cat-honey.jpg";
 import catHerbs from "@/assets/cat-herbs.jpg";
+import catLivestock from "@/assets/cat-livestock.jpg";
 
 const categoryImages: Record<string, string> = {
   fruits: catFruits,

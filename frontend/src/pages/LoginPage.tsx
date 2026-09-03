@@ -24,7 +24,7 @@ export default function LoginPage() {
       } else if (user.user_type === "admin") {
         navigate("/admin");
       } else {
-        navigate("/customer/dashboard");
+        navigate("/customer");
       }
     }
   }, [user, navigate]);
@@ -68,12 +68,6 @@ export default function LoginPage() {
             </div>
             <Button type="submit" className="w-full">Sign In</Button>
           </form>
-          <div className="mt-4 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-            <p className="font-medium text-foreground mb-1">Demo accounts:</p>
-            <p>Customer: customer@test.com / password</p>
-            <p>Farmer: farmer@test.com / password</p>
-            <p>Admin: admin@test.com / password</p>
-          </div>
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Don't have an account?{" "}
             <Link to="/register" className="font-medium text-primary hover:underline">Register</Link>

@@ -66,3 +66,22 @@ apiClient.interceptors.response.use(
 );
 
 export default apiClient;
+
+// ✅ Add this helper function
+export const getImageUrl = (path: string | null) => {
+  if (!path) return '';
+  
+  // If it's already a full URL (starts with http), return it as-is
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  
+  // If it's a local path starting with /media/, prepend the API base
+  const base = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  if (path.startsWith('/media/')) {
+    return `${base}${path}`;
+  }
+  
+  // Fallback: treat as local media path
+  return `${base}/media/${path}`;
+};

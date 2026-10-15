@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
+const API_URL = import.meta.env.VITE_API_URL || "http://farmconnect.zchpc.ac.zw/api/v1";
 
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -77,7 +77,7 @@ export const getImageUrl = (path: string | null) => {
   }
   
   // If it's a local path starting with /media/, prepend the API base
-  const base = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  const base = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://farmconnect.zchpc.ac.zw';
   if (path.startsWith('/media/')) {
     return `${base}${path}`;
   }

@@ -30,6 +30,11 @@ export const orderService = {
     return response.data;
   },
 
+  getOrderById: async (orderId: number | string) => {
+    const response = await apiClient.get<Order>(`/cart/orders/${orderId}/`);
+    return response.data;
+  },
+
   createOrder: async (data: {
     first_name: string;
     last_name: string;

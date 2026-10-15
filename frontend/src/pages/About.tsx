@@ -1,7 +1,11 @@
-// src/pages/About.tsx
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useEffect } from "react";
+import heroImg from "@/assets/farm-fresh2.jpg";
+import vegImg from "@/assets/cat-vegetables.jpg";
+import farmImg from "@/assets/hero-farm.jpg";
+import spinachImg from "@/assets/spinach.jpg";
+import carrotsImg from "@/assets/carrots.jpg";
 
 export default function About() {
   // FAQ toggle
@@ -160,7 +164,7 @@ export default function About() {
           .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; }
           .card { background: var(--white); border-radius: var(--radius-lg); padding: 28px 24px; box-shadow: var(--shadow-sm); border: 1px solid var(--gray-200); transition: box-shadow var(--transition), transform var(--transition); }
           .card:hover { box-shadow: var(--shadow-md); transform: translateY(-3px); }
-          .hero { background: linear-gradient(135deg, rgba(30,82,32,0.88) 0%, rgba(19,53,22,0.82) 100%), url('https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=1400&q=80') center/cover no-repeat; color: var(--white); padding: 120px 20px; text-align: center; }
+          .hero { background: linear-gradient(135deg, rgba(30,82,32,0.88) 0%, rgba(19,53,22,0.82) 100%); color: var(--white); padding: 120px 20px; text-align: center; }
           .hero-badge { background: rgba(255,255,255,0.18); color: var(--white); border-color: rgba(255,255,255,0.35); }
           .hero h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 800; line-height: 1.18; margin-bottom: 20px; text-shadow: 0 2px 8px rgba(0,0,0,0.2); }
           .hero p { font-size: clamp(1rem, 2vw, 1.22rem); max-width: 580px; margin: 0 auto 36px; opacity: 0.9; }
@@ -257,7 +261,7 @@ export default function About() {
         `}</style>
 
         {/* Hero */}
-        <header className="hero" id="hero">
+        <header className="hero" id="hero" style={{ backgroundImage: `linear-gradient(135deg, rgba(30,82,32,0.88) 0%, rgba(19,53,22,0.82) 100%), url(${heroImg})`, backgroundSize: "cover", backgroundPosition: "center" }}>
           <div className="badge hero-badge">🌾 Locally Sourced, Freshly Delivered</div>
           <h1>Farm Fresh Hub</h1>
           <p>Connecting local farmers with fresh, healthy communities — from the soil to your table.</p>
@@ -332,20 +336,20 @@ export default function About() {
             <p className="section-sub">A glimpse into the landscapes and hands behind every order.</p>
             <div className="gallery-grid">
               <div className="gallery-item animate">
-                <img src="https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&q=75" alt="Fresh vegetables" loading="lazy" />
+                <img src={vegImg} alt="Fresh vegetables" loading="lazy" />
                 <div className="gallery-caption">Fresh Vegetables</div>
               </div>
               <div className="gallery-item animate" style={{ animationDelay: "0.1s" }}>
-                <img src="https://images.stockcake.com/public/a/4/7/a47b4392-872b-4e5e-a522-a916d7832939_large/sustainable-harvest-collaboration-stockcake.jpg" alt="Farmers harvesting" loading="lazy" />
+                <img src={farmImg} alt="Farmers harvesting" loading="lazy" />
                 <div className="gallery-caption">Harvest Season</div>
               </div>
               <div className="gallery-item animate" style={{ animationDelay: "0.2s" }}>
-                <img src="https://images.unsplash.com/photo-1533062618053-d51e617307ec?w=600&q=75" alt="Organic produce" loading="lazy" />
+                <img src={spinachImg} alt="Organic produce" loading="lazy" />
                 <div className="gallery-caption">Organic Produce</div>
               </div>
               <div className="gallery-item animate" style={{ animationDelay: "0.3s" }}>
-                <img src="https://images.unsplash.com/photo-1500076656116-558758c991c1?w=600&q=75" alt="Farm landscape" loading="lazy" />
-                <div className="gallery-caption">Farm Landscapes</div>
+                <img src={carrotsImg} alt="Farm harvest" loading="lazy" />
+                <div className="gallery-caption">Fresh Harvest</div>
               </div>
             </div>
           </div>

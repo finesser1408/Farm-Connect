@@ -1,61 +1,103 @@
-import { Package, Clock, CheckCircle, ShoppingBag } from "lucide-react";
+import { Package, Clock, CheckCircle, ShoppingBag, Loader2 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-
-const stats = [
-  { label: "Total Orders", value: "0", icon: Package, color: "text-primary" },
-  { label: "Pending", value: "0", icon: Clock, color: "text-warning" },
-  { label: "Delivered", value: "0", icon: CheckCircle, color: "text-primary" },
-];
-
-const recentOrders: any[] = [];
+import { useQuery } from "@tanstack/react-query";
+import { orderService } from "@/lib/services/order-service";
 
 export default function CustomerDashboard() {
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ["customer-orders"],
+    queryFn: () => orderService.getOrders(),
+  });
+
+  const totalOrders = orders.length;
+  const pendingOrders = orders.filter((o) => o.status === "Pending" || o.status === "Processing" || o.status === "Accepted").length;
+  const deliveredOrders = orders.filter((o) => o.status === "Delivered").length;
+
+  const stats = [
+    { label: "Total Orders", value: totalOrders.toString(), icon: Package, color: "text-primary" },
+    { label: "In Progress", value: pendingOrders.toString(), icon: Clock, color: "text-amber-600" },
+    { label: "Delivered", value: deliveredOrders.toString(), icon: CheckCircle, color: "text-emerald-600" },
+  ];
+
+  const recentOrders = orders.slice(0, 5);
+
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />
       <div className="container flex-1 py-8">
         <h1 className="mb-6 font-display text-3xl text-foreground">My Dashboard</h1>
-        <div className="mb-8 grid gap-4 sm:grid-cols-3">
-          {stats.map((s) => (
-            <div key={s.label} className="flex items-center gap-4 rounded-lg border border-border bg-card p-5">
-              <div className={`flex h-12 w-12 items-center justify-center rounded-full bg-muted ${s.color}`}><s.icon className="h-6 w-6" /></div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{s.value}</p>
-                <p className="text-sm text-muted-foreground">{s.label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="rounded-lg border border-border bg-card">
-          <div className="flex items-center justify-between border-b border-border px-6 py-4">
-            <h2 className="font-display text-lg text-foreground">Recent Orders</h2>
-            <Link to="/customer/orders"><Button variant="ghost" size="sm" className="text-primary">View All</Button></Link>
+        {isLoading ? (
+          <div className="flex h-40 items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-          {recentOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <ShoppingBag className="mb-3 h-12 w-12 text-muted-foreground/40" />
-              <p className="text-sm">No orders yet. Start shopping to see your orders here!</p>
-              <Link to="/marketplace" className="mt-3">
-                <Button size="sm">Browse Marketplace</Button>
-              </Link>
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {recentOrders.map((o) => (
-                <div key={o.id} className="flex items-center justify-between px-6 py-3 text-sm">
-                  <span className="font-medium text-foreground">{o.id}</span>
-                  <span className="text-muted-foreground">{o.date}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${o.status === "Delivered" ? "bg-primary/10 text-primary" : o.status === "Shipped" ? "bg-accent/20 text-accent-foreground" : "bg-muted text-muted-foreground"}`}>{o.status}</span>
-                  <span className="font-medium text-foreground">${o.total.toFixed(2)}</span>
+        ) : (
+          <>
+            <div className="mb-8 grid gap-4 sm:grid-cols-3">
+              {stats.map((s) => (
+                <div key={s.label} className="flex items-center gap-4 rounded-lg border border-border bg-card p-5">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-full bg-muted ${s.color}`}>
+                    <s.icon className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-foreground">{s.value}</p>
+                    <p className="text-sm text-muted-foreground">{s.label}</p>
+                  </div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
+
+            <div className="rounded-lg border border-border bg-card">
+              <div className="flex items-center justify-between border-b border-border px-6 py-4">
+                <h2 className="font-display text-lg text-foreground">Recent Orders</h2>
+                <Link to="/customer/orders">
+                  <Button variant="ghost" size="sm" className="text-primary">View All</Button>
+                </Link>
+              </div>
+              {recentOrders.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <ShoppingBag className="mb-3 h-12 w-12 text-muted-foreground/40" />
+                  <p className="text-sm">No orders yet. Start shopping to see your orders here!</p>
+                  <Link to="/marketplace" className="mt-3">
+                    <Button size="sm">Browse Marketplace</Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {recentOrders.map((o) => (
+                    <div key={o.id} className="flex items-center justify-between px-6 py-3 text-sm">
+                      <span className="font-medium text-foreground">#{o.id}</span>
+                      <span className="text-muted-foreground">
+                        {new Date(o.created_at).toLocaleDateString()}
+                      </span>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        o.status === "Delivered"
+                          ? "bg-primary/10 text-primary"
+                          : o.status === "Shipped" || o.status === "Accepted"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : o.status === "Cancelled" || o.status === "Rejected"
+                          ? "bg-destructive/10 text-destructive"
+                          : "bg-muted text-muted-foreground"
+                      }`}>
+                        {o.status}
+                      </span>
+                      <span className="font-medium text-foreground">
+                        ${parseFloat(o.total_amount).toFixed(2)}
+                      </span>
+                      <Link to={`/customer/orders/${o.id}`}>
+                        <Button variant="ghost" size="sm" className="text-primary text-xs">
+                          Track
+                        </Button>
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
       <Footer />
     </div>

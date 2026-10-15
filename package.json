@@ -1,7 +1,7 @@
 {
   "name": "farm-fresh-hub",
   "version": "1.0.0",
-  "description": "**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID",
+  "description": "Farm Fresh Hub - E-Commerce platform connecting local farmers directly to consumers",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

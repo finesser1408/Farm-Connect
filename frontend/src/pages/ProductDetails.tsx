@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import ProductCard from "@/components/ProductCard";
 import { useQuery } from "@tanstack/react-query";
 import { productService } from "@/lib/services/product-service";
+import { getImageUrl } from "@/lib/api-client";
 
 export default function ProductDetails() {
   const { id: slug } = useParams();
@@ -83,24 +84,24 @@ export default function ProductDetails() {
 
         <div className="grid gap-8 md:grid-cols-2">
           {/* Image */}
-           <div className="aspect-square overflow-hidden rounded-lg bg-muted">
-  <img
-    src={product.image}
-    alt={product.name}
-    className="h-full w-full object-cover"
-    onError={(e) => {
-      e.currentTarget.src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&h=400&fit=crop&auto=format';
-    }}
-  />
-</div>
+          <div className="aspect-square overflow-hidden rounded-lg bg-muted">
+            <img
+              src={getImageUrl(product.image)}
+              alt={product.name}
+              className="h-full w-full object-cover"
+              onError={(e) => {
+                e.currentTarget.src = "/placeholder.svg";
+              }}
+            />
+          </div>
 
           {/* Info */}
           <div className="flex flex-col">
             <span className="mb-2 text-xs font-medium uppercase tracking-wide text-primary">{product.category_details?.name}</span>
             <h1 className="mb-2 font-display text-3xl text-foreground">{product.name}</h1>
             <div className="mb-4 flex items-center gap-3 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1"><Star className="h-4 w-4 fill-accent text-accent" /> 4.5</span>
-              <span>(24 reviews)</span>
+              <span className="flex items-center gap-1"><Star className="h-4 w-4 fill-accent text-accent" /> Farm Fresh</span>
+              <span>• Direct from grower</span>
             </div>
             <div className="mb-2 flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4" /> {product.farmer_name}
@@ -139,13 +140,13 @@ export default function ProductDetails() {
             <button
               onClick={() => setActiveTab("reviews")}
               className={`pb-3 text-sm font-medium ${activeTab === "reviews" ? "border-b-2 border-primary text-primary" : "text-muted-foreground"}`}
-            >Reviews (24)</button>
+            >Reviews</button>
           </div>
           <div className="py-6">
             {activeTab === "description" ? (
               <p className="max-w-2xl text-muted-foreground">{product.description}</p>
             ) : (
-              <p className="text-muted-foreground">Reviews coming soon.</p>
+              <p className="text-muted-foreground">No customer reviews yet.</p>
             )}
           </div>
         </div>

@@ -18,6 +18,8 @@ const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const OrderSuccessPage = lazy(() => import("./pages/OrderSuccessPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const CustomerDashboard = lazy(() => import("./pages/customer/CustomerDashboard"));
 const CustomerOrders = lazy(() => import("./pages/customer/CustomerOrders"));
 const OrderTracking = lazy(() => import("./pages/customer/OrderTracking"));
@@ -61,6 +63,8 @@ const App = () => (
                 <Route path="/order-success" element={<OrderSuccessPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/password_reset/:uidb64/:token" element={<ResetPasswordPage />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/customer" element={<CustomerDashboard />} />
                 <Route path="/customer/orders" element={<CustomerOrders />} />

@@ -1,3 +1,6 @@
+from django.conf import settings
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
 from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes
@@ -227,8 +230,7 @@ def password_reset_request(request):
             token = default_token_generator.make_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             
-            # In a real app, this would be a link to your frontend
-            reset_url = f"https://farmfreshhub.com/password-reset/confirm/{uid}/{token}/"
+            reset_url = f"{settings.FRONTEND_URL}/password_reset/{uid}/{token}"
             
             email_result = email_service.send_password_reset(
                 user_email=email,
@@ -262,7 +264,16 @@ def password_reset_confirm(request, uidb64, token):
             user = None
 
         if user is not None and default_token_generator.check_token(user, token):
-            user.set_password(serializer.validated_data['new_password'])
+            new_password = serializer.validated_data['new_password']
+            try:
+                validate_password(new_password, user=user)
+            except ValidationError as error:
+                return Response(
+                    {'new_password': error.messages},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            user.set_password(new_password)
             user.save()
             return Response({'message': 'Password reset successful'}, status=status.HTTP_200_OK)
         else:

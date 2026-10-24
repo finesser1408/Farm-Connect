@@ -29,6 +29,9 @@ SMTP_USE_TLS=True
 
 # Default from email
 DEFAULT_FROM_EMAIL=your-email@farmfreshhub.com
+
+# Public frontend origin used to build password reset links
+FRONTEND_URL=https://farmconnect.zchpc.ac.zw
 ```
 
 3. **For Gmail users:**
@@ -60,6 +63,7 @@ DEFAULT_FROM_EMAIL=onboarding@resend.dev
 
 ### 3. Password Reset Emails
 - Secure password reset links
+- Set `FRONTEND_URL` to the public origin where the React app is hosted
 - Expiration timing (24 hours)
 - Security warnings and best practices
 

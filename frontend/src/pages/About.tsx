@@ -259,7 +259,7 @@ export default function About() {
         {/* Hero */}
         <header className="hero" id="hero">
           <div className="badge hero-badge">🌾 Locally Sourced, Freshly Delivered</div>
-          <h1>Farm Fresh Hub</h1>
+          <h1>FarmConnect</h1>
           <p>Connecting local farmers with fresh, healthy communities — from the soil to your table.</p>
           <div className="hero-actions">
             <a href="/marketplace" className="btn btn-primary">Browse Products</a>
@@ -277,7 +277,7 @@ export default function About() {
           <div className="container">
             <div className="badge">About Us</div>
             <h2 className="section-title">Who We Are</h2>
-            <p className="section-sub">Farm Fresh Hub is a community-driven platform that bridges the gap between local farmers and families seeking genuinely fresh, nutritious produce. Founded on a love for sustainable agriculture, we believe great food starts at the source.</p>
+            <p className="section-sub">FarmConnect is a community-driven platform that bridges the gap between local farmers and families seeking genuinely fresh, nutritious produce. Founded on a love for sustainable agriculture, we believe great food starts at the source.</p>
             <div className="grid-2">
               <div className="card animate">
                 <div style={{ fontSize: "2rem", marginBottom: "12px" }}>🌿</div>
@@ -460,7 +460,7 @@ export default function About() {
             <div className="grid-3">
               <div className="card testimonial-card animate">
                 <div className="testimonial-stars">★★★★★</div>
-                <p className="testimonial-text">"I switched to Farm Fresh Hub six months ago and I genuinely cannot go back to supermarket produce. The tomatoes taste like actual tomatoes again!"</p>
+                <p className="testimonial-text">"I switched to FarmConnect six months ago and I genuinely cannot go back to supermarket produce. The tomatoes taste like actual tomatoes again!"</p>
                 <div className="testimonial-author">
                   <div className="author-avatar">TN</div>
                   <div><div className="author-name">Thandiwe Ndlovu</div><div className="author-role">Home Cook, Harare</div></div>
@@ -468,7 +468,7 @@ export default function About() {
               </div>
               <div className="card testimonial-card animate" style={{ animationDelay: "0.1s" }}>
                 <div className="testimonial-stars">★★★★★</div>
-                <p className="testimonial-text">"As a restaurant owner, freshness is everything. Farm Fresh Hub delivers consistently excellent produce on time, every time. My kitchen team loves it."</p>
+                <p className="testimonial-text">"As a restaurant owner, freshness is everything. FarmConnect delivers consistently excellent produce on time, every time. My kitchen team loves it."</p>
                 <div className="testimonial-author">
                   <div className="author-avatar">KM</div>
                   <div><div className="author-name">Kofi Mensah</div><div className="author-role">Restaurant Owner</div></div>
@@ -557,7 +557,7 @@ export default function About() {
                 <h3>Contact Information</h3>
                 <div className="contact-item">
                   <div className="contact-item-icon">📧</div>
-                  <div className="contact-item-text"><strong>Email</strong><a href="mailto:hello@farmfreshhub.com">hello@farmfreshhub.com</a></div>
+                  <div className="contact-item-text"><strong>Email</strong><a href="mailto:info@farmconnect.co.zw">info@farmconnect.co.zw</a></div>
                 </div>
                 <div className="contact-item">
                   <div className="contact-item-icon">📞</div>
@@ -604,7 +604,7 @@ export default function About() {
         <div className="map-section">
           <iframe
             src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3800.0!2d31.0522!3d-17.8252!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTfCsDQ5JzMwLjciUyAzMcKwMDMnMDguMCJF!5e0!3m2!1sen!2szw!4v1600000000000!5m2!1sen!2szw"
-            title="Farm Fresh Hub location map"
+            title="FarmConnect location map"
             loading="lazy"
             allowFullScreen
             referrerPolicy="no-referrer-when-downgrade"

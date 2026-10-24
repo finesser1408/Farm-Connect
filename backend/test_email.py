@@ -19,9 +19,9 @@ def test_email():
     # Test with a simple email
     result = email_service.send_email(
         to_email="nicolemutorey@gmail.com",  # Test with your own email
-        subject="Test Email from Farm Fresh Hub",
-        html_content="<h1>Test Email</h1><p>This is a test email from Farm Fresh Hub.</p>",
-        text_content="Test Email\n\nThis is a test email from Farm Fresh Hub.",
+        subject="Test Email from FarmConnect",
+        html_content="<h1>Test Email</h1><p>This is a test email from FarmConnect.</p>",
+        text_content="Test Email\n\nThis is a test email from FarmConnect.",
         use_resend=False  # Use SMTP for testing
     )
     

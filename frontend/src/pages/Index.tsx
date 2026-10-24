@@ -40,7 +40,7 @@ const features = [
 // NEW: Testimonials data for social proof
 const testimonials = [
   { name: "Nicole M.", role: "Regular Customer", text: "The freshest vegetables I've ever bought! Delivery is always on time.", rating: 4 },
-  { name: "Tavonga U.", role: "Chef", text: "Farm Fresh Hub is my go-to for organic ingredients. Superior quality every time.", rating: 5 },
+  { name: "Tavonga U.", role: "Chef", text: "FarmConnect is my go-to for organic ingredients. Superior quality every time.", rating: 5 },
   { name: "Kudzai M.", role: "Health Coach", text: "Supporting local farmers has never been easier. Love the variety!", rating: 5 },
 ];
 

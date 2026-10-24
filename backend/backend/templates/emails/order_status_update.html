@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Update - Farm Fresh Hub</title>
+    <title>Order Update - FarmConnect</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -106,7 +106,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">🌱 Farm Fresh Hub</div>
+            <div class="logo">🌱 FarmConnect</div>
             <h1>Order Status Update</h1>
             <div class="order-number">Order #{{ order_id }}</div>
             <div class="status-badge status-{{ status }}">{{ status|title }}</div>
@@ -153,7 +153,7 @@
             <h3>Tracking Information</h3>
             <p>You can track your order in real-time through your account dashboard or by clicking the button below.</p>
             <div style="text-align: center;">
-                <a href="https://farmfreshhub.com/orders/{{ order_id }}" class="cta-button">Track Order</a>
+                <a href="https://farmconnect.zchpc.ac.zw/customer/orders/{{ order_id }}" class="cta-button">Track Order</a>
             </div>
         </div>
         {% endif %}
@@ -163,16 +163,16 @@
             <h3>Rate Your Experience</h3>
             <p>We'd love to hear about your experience! Your feedback helps us improve and supports our farmers.</p>
             <div style="text-align: center;">
-                <a href="https://farmfreshhub.com/orders/{{ order_id }}/review" class="cta-button">Leave a Review</a>
+                <a href="https://farmconnect.zchpc.ac.zw/customer/orders/{{ order_id }}" class="cta-button">Leave a Review</a>
             </div>
         </div>
         {% endif %}
         
-        <p>Have questions about your order? Reply to this email or contact our support team at support@farmfreshhub.com</p>
+        <p>Have questions about your order? Reply to this email or contact our support team at support@farmconnect.zchpc.ac.zw</p>
         
         <div class="footer">
-            <p>Thank you for choosing Farm Fresh Hub!</p>
-            <p>The Farm Fresh Hub Team</p>
+            <p>Thank you for choosing FarmConnect!</p>
+            <p>The FarmConnect Team</p>
             <p>🌱 Fresh • Local • Sustainable</p>
         </div>
     </div>

@@ -14,5 +14,6 @@ media/
 __pycache__/
 *.pyc
 venv/
+source/
 .env
 .env.example

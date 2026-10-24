@@ -157,31 +157,31 @@ class EmailService:
     
     def send_welcome_email(self, user_email, user_name):
         """Send welcome email to new user"""
-        subject = "Welcome to Farm Fresh Hub!"
+        subject = "Welcome to FarmConnect!"
         
         html_content = f"""
         <html>
         <body>
-            <h2>Welcome to Farm Fresh Hub, {user_name}!</h2>
+            <h2>Welcome to FarmConnect, {user_name}!</h2>
             <p>Thank you for joining our community of fresh produce enthusiasts.</p>
             <p>Start exploring our wide selection of fresh fruits, vegetables, and farm products.</p>
             <p>If you have any questions, feel free to contact our support team.</p>
             <br>
             <p>Happy shopping!</p>
-            <p>The Farm Fresh Hub Team</p>
+            <p>The FarmConnect Team</p>
         </body>
         </html>
         """
         
         text_content = f"""
-        Welcome to Farm Fresh Hub, {user_name}!
+        Welcome to FarmConnect, {user_name}!
         
         Thank you for joining our community of fresh produce enthusiasts.
         Start exploring our wide selection of fresh fruits, vegetables, and farm products.
         If you have any questions, feel free to contact our support team.
         
         Happy shopping!
-        The Farm Fresh Hub Team
+        The FarmConnect Team
         """
         
         return self.send_email(user_email, subject, html_content, text_content)
@@ -209,7 +209,7 @@ class EmailService:
             </table>
             
             <p>We'll notify you when your order is on its way!</p>
-            <p>The Farm Fresh Hub Team</p>
+            <p>The FarmConnect Team</p>
         </body>
         </html>
         """
@@ -227,7 +227,7 @@ class EmailService:
         Total: ${total_amount:.2f}
         
         We'll notify you when your order is on its way!
-        The Farm Fresh Hub Team
+        The FarmConnect Team
         """
         
         return self.send_email(user_email, subject, html_content, text_content)
@@ -251,7 +251,7 @@ class EmailService:
             <p>Dear {user_name},</p>
             <p>{message}</p>
             <p>You can track your order status in your account dashboard.</p>
-            <p>The Farm Fresh Hub Team</p>
+            <p>The FarmConnect Team</p>
         </body>
         </html>
         """
@@ -264,7 +264,7 @@ class EmailService:
         {message}
         
         You can track your order status in your account dashboard.
-        The Farm Fresh Hub Team
+        The FarmConnect Team
         """
         
         return self.send_email(user_email, subject, html_content, text_content)
@@ -278,12 +278,12 @@ class EmailService:
         <body>
             <h2>Password Reset Request</h2>
             <p>Dear {user_name},</p>
-            <p>We received a request to reset your password for your Farm Fresh Hub account.</p>
+            <p>We received a request to reset your password for your FarmConnect account.</p>
             <p>Click the link below to reset your password:</p>
             <p><a href="{reset_link}">Reset Password</a></p>
             <p>This link will expire in 24 hours.</p>
             <p>If you didn't request this, please ignore this email.</p>
-            <p>The Farm Fresh Hub Team</p>
+            <p>The FarmConnect Team</p>
         </body>
         </html>
         """
@@ -293,7 +293,7 @@ class EmailService:
         
         Dear {user_name},
         
-        We received a request to reset your password for your Farm Fresh Hub account.
+        We received a request to reset your password for your FarmConnect account.
         
         Click the link below to reset your password:
         {reset_link}
@@ -301,7 +301,7 @@ class EmailService:
         This link will expire in 24 hours.
         
         If you didn't request this, please ignore this email.
-        The Farm Fresh Hub Team
+        The FarmConnect Team
         """
         
         return self.send_email(user_email, subject, html_content, text_content)

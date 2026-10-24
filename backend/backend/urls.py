@@ -25,9 +25,9 @@ def api_root(request):
 
 
 # ── Admin site branding ──────────────────────
-admin.site.site_header  = '🌿 Farm Fresh Hub Admin'
-admin.site.site_title   = 'Farm Fresh Hub'
-admin.site.index_title  = 'Dashboard – Farm Fresh Hub'
+admin.site.site_header  = '🌿 FarmConnect Admin'
+admin.site.site_title   = 'FarmConnect'
+admin.site.index_title  = 'Dashboard – FarmConnect'
 
 urlpatterns = [
     path('', api_root, name='api-root'),

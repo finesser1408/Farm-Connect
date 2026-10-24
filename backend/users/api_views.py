@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.shortcuts import get_object_or_404
 from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes
@@ -227,8 +228,9 @@ def password_reset_request(request):
             token = default_token_generator.make_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             
-            # In a real app, this would be a link to your frontend
-            reset_url = f"https://farmfreshhub.com/password-reset/confirm/{uid}/{token}/"
+            # Link to frontend password reset confirmation
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'https://farmconnect.zchpc.ac.zw').rstrip('/')
+            reset_url = f"{frontend_url}/password-reset/confirm/{uid}/{token}/"
             
             email_result = email_service.send_password_reset(
                 user_email=email,

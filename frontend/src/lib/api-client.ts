@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
+const API_URL = import.meta.env.VITE_API_URL || "https://farmconnect.zchpc.ac.zw/api/v1";
 
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -67,7 +67,7 @@ apiClient.interceptors.response.use(
 
 export default apiClient;
 
-// ✅ Add this helper function
+// ✅ Helper function to resolve media image URLs
 export const getImageUrl = (path: string | null) => {
   if (!path) return '';
   
@@ -76,12 +76,16 @@ export const getImageUrl = (path: string | null) => {
     return path;
   }
   
-  // If it's a local path starting with /media/, prepend the API base
-  const base = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  // Base URL without /api/v1 suffix
+  const rawApiUrl = import.meta.env.VITE_API_URL || 'https://farmconnect.zchpc.ac.zw';
+  const base = rawApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
+  
   if (path.startsWith('/media/')) {
     return `${base}${path}`;
   }
   
   // Fallback: treat as local media path
-  return `${base}/media/${path}`;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${base}/media${cleanPath}`;
 };
+

@@ -13,7 +13,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
 django.setup()
 
 # API base URL
-BASE_URL = 'http://localhost:8000/api/auth'
+BASE_URL = os.environ.get('API_BASE_URL', 'http://localhost:8000/api/v1/auth')
 
 def test_registration():
     """Test user registration endpoint"""

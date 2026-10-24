@@ -29,12 +29,43 @@ load_dotenv(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'False') == 'False'
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
 
-ALLOWED_HOSTS = ['farmconnect.zchpc.ac.zw',
-                 '10.50.103.90',
- ]
+ALLOWED_HOSTS = [
+    'farmconnect.zchpc.ac.zw',
+    '10.50.103.90',
+    '127.0.0.1',
+    'localhost',
+]
 
+# Frontend URL
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://farmconnect.zchpc.ac.zw').rstrip('/')
+
+# Security & Proxy Settings
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://farmconnect.zchpc.ac.zw',
+    'http://farmconnect.zchpc.ac.zw',
+    'http://10.50.103.90',
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:8080',
+    'http://127.0.0.1:5173',
+]
+
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    'https://farmconnect.zchpc.ac.zw',
+    'http://farmconnect.zchpc.ac.zw',
+    'http://10.50.103.90',
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:8080',
+    'http://127.0.0.1:5173',
+]
 
 # Application definition
 
@@ -74,7 +105,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10,
+    'PAGE_SIZE': 12,
     'DEFAULT_FILTER_BACKENDS': (
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
@@ -83,11 +114,14 @@ REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'backend.exceptions.global_exception_handler',
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
-
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
 }
 
 ROOT_URLCONF = 'backend.urls'
@@ -194,31 +228,5 @@ SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'True').lower() == 'true'
 # Resend Configuration
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
 
-# REST Framework Configuration
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
-    ),
-    'DEFAULT_FILTER_BACKENDS': (
-        'django_filters.rest_framework.DjangoFilterBackend',
-    ),
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 12,
-}
 
-from datetime import timedelta
-
-# JWT Configuration
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
-}
 

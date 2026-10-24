@@ -28,8 +28,15 @@ dist-ssr
 venv/
 env/
 venv
+source/
+backend/source/
 .env
 .env/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Media
+media/
+backend/media/
+

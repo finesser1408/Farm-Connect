@@ -1,6 +1,6 @@
 # Email Notification Setup Guide
 
-This guide explains how to configure email notifications for Farm Fresh Hub using Python SMTP and/or Resend API.
+This guide explains how to configure email notifications for FarmConnect using Python SMTP and/or Resend API.
 
 ## Configuration Options
 
@@ -28,7 +28,7 @@ SMTP_PASSWORD=your-app-password
 SMTP_USE_TLS=True
 
 # Default from email
-DEFAULT_FROM_EMAIL=your-email@farmfreshhub.com
+DEFAULT_FROM_EMAIL=your-email@farmconnect.zchpc.ac.zw
 ```
 
 3. **For Gmail users:**

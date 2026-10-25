@@ -35,7 +35,9 @@ export default function FarmerLayout() {
               <span className="font-display text-lg text-foreground">Farm Connect — Farmer</span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground">{user?.name || "Farmer"}</span>
+              <span className="text-sm text-muted-foreground">
+                {user?.first_name || user?.username || "Farmer"}
+              </span>
               <Button variant="ghost" size="sm" onClick={handleLogout}><LogOut className="mr-1 h-4 w-4" /> Logout</Button>
             </div>
           </header>

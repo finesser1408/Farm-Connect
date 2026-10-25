@@ -20,7 +20,9 @@ const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
+const VerifyOtpPage = lazy(() => import("./pages/VerifyOtpPage"));
 const CustomerDashboard = lazy(() => import("./pages/customer/CustomerDashboard"));
+const CustomerAccount = lazy(() => import("./pages/customer/CustomerAccount"));
 const CustomerOrders = lazy(() => import("./pages/customer/CustomerOrders"));
 const OrderTracking = lazy(() => import("./pages/customer/OrderTracking"));
 const FarmerLayout = lazy(() => import("./layouts/FarmerLayout"));
@@ -64,9 +66,11 @@ const App = () => (
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/verify-email" element={<VerifyOtpPage />} />
                 <Route path="/password_reset/:uidb64/:token" element={<ResetPasswordPage />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/customer" element={<CustomerDashboard />} />
+                <Route path="/customer/account" element={<CustomerAccount />} />
                 <Route path="/customer/orders" element={<CustomerOrders />} />
                 <Route path="/customer/orders/:orderId" element={<OrderTracking />} />
                 <Route path="/farmer" element={<FarmerLayout />}>

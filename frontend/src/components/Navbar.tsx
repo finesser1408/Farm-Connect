@@ -45,14 +45,24 @@ export default function Navbar() {
           </Link>
           {user ? (
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-1.5">
+              <Link
+                to={
+                  user.user_type === "farmer"
+                    ? "/farmer/profile"
+                    : user.user_type === "admin"
+                      ? "/admin/settings"
+                      : "/customer/account"
+                }
+                title="Account settings"
+                className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-1.5 transition-colors hover:border-primary/40 hover:bg-muted"
+              >
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium">
                   {(user.first_name || user.username || "U").charAt(0).toUpperCase()}
                 </div>
                 <span className="hidden text-sm font-medium text-foreground sm:block">
                   {user.first_name || user.username}
                 </span>
-              </div>
+              </Link>
               <Button
                 variant="ghost"
                 size="icon"
@@ -91,6 +101,19 @@ export default function Navbar() {
                   className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
                 >
                   Dashboard
+                </Link>
+                <Link
+                  to={
+                    user.user_type === "farmer"
+                      ? "/farmer/profile"
+                      : user.user_type === "admin"
+                        ? "/admin/settings"
+                        : "/customer/account"
+                  }
+                  onClick={() => setMobileOpen(false)}
+                  className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
+                >
+                  Account settings
                 </Link>
                 <button 
                   onClick={() => {

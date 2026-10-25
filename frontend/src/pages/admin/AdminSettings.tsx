@@ -1,138 +1,184 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ChangePasswordForm from "@/components/ChangePasswordForm";
 import { useToast } from "@/hooks/use-toast";
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Platform-wide settings have no persistence endpoint yet, so they are kept in
+// this browser until a settings API lands. Password changes below are real.
+
+interface PlatformFields {
+  platformName: string;
+  supportEmail: string;
+  deliveryFee: string;
+}
+
+type PlatformErrors = Partial<Record<keyof PlatformFields, string>>;
+
 export default function AdminSettings() {
-  const [platformName, setPlatformName] = useState("");
-  const [supportEmail, setSupportEmail] = useState("");
-  const [deliveryFee, setDeliveryFee] = useState("");
-  const [ecoCashMerchantId, setEcoCashMerchantId] = useState("");
-  const [oneMoneyMerchantId, setOneMoneyMerchantId] = useState("");
+  const { toast } = useToast();
+  const [fields, setFields] = useState<PlatformFields>({
+    platformName: "Farm Connect",
+    supportEmail: "",
+    deliveryFee: "5.00",
+  });
+  const [errors, setErrors] = useState<PlatformErrors>({});
   const [theme, setTheme] = useState("light");
   const [notifications, setNotifications] = useState(true);
-  const [password, setPassword] = useState("");
 
-  const { toast } = useToast();
-
-  // TODO: load settings from API
-  useEffect(() => {
-    // Example: fetch('/api/admin/settings').then(res => res.json()).then(data => {
-    //   setPlatformName(data.platformName || "");
-    //   ...
-    // });
-  }, []);
-
-
-  const handleSavePlatform = () => {
-    console.log("Platform settings saved", { platformName, supportEmail, deliveryFee });
-    toast({
-      title: "Platform settings saved",
-      description: `${platformName}, ${supportEmail}, $${deliveryFee}`,
-    });
+  const update = (name: keyof PlatformFields) => (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setFields((prev) => ({ ...prev, [name]: event.target.value }));
+    setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
-  const handleSavePayment = () => {
-    console.log("Payment settings updated", { ecoCashMerchantId, oneMoneyMerchantId });
-    if (!ecoCashMerchantId && !oneMoneyMerchantId) {
-      toast({ title: "Enter at least one payment merchant ID", variant: "destructive" });
-      return;
+  const validate = (): boolean => {
+    const next: PlatformErrors = {};
+
+    if (!fields.platformName.trim()) {
+      next.platformName = "Platform name is required.";
     }
-    toast({ title: "Payment settings updated", description: "Merchant IDs saved successfully." });
+
+    if (!EMAIL_PATTERN.test(fields.supportEmail.trim())) {
+      next.supportEmail = "Enter a valid support email.";
+    }
+
+    const fee = Number(fields.deliveryFee);
+    if (fields.deliveryFee.trim() === "" || Number.isNaN(fee)) {
+      next.deliveryFee = "Enter a numeric delivery fee.";
+    } else if (fee < 0) {
+      next.deliveryFee = "Delivery fee can't be negative.";
+    }
+
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleSavePlatform = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!validate()) return;
+
+    try {
+      localStorage.setItem("farmconnect.platformSettings", JSON.stringify(fields));
+      toast({
+        title: "Platform settings saved",
+        description: `${fields.platformName} · ${fields.supportEmail} · $${fields.deliveryFee} delivery`,
+      });
+    } catch {
+      toast({
+        title: "Couldn't save settings",
+        description: "This browser blocked local storage.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSavePreferences = () => {
-    console.log("Preferences saved:", { theme, notifications });
-    toast({ title: "Preferences saved", description: `Theme: ${theme}. Notifications: ${notifications ? "on" : "off"}.` });
+    toast({
+      title: "Preferences saved",
+      description: `Theme: ${theme}. Notifications: ${notifications ? "on" : "off"}.`,
+    });
   };
 
-  const handleChangePassword = () => {
-    if (password.trim().length < 6) {
-      toast({ title: "Password too short", description: "Use at least 6 characters", variant: "destructive" });
-      return;
-    }
-    console.log("Password changed:", password);
-    toast({ title: "Password updated", description: "Your password has been changed successfully." });
-    setPassword("");
-  };
+  const fieldError = (name: keyof PlatformFields) =>
+    errors[name] ? (
+      <p role="alert" className="mt-1 text-xs text-destructive">{errors[name]}</p>
+    ) : null;
 
   return (
-    <div className="max-w-auto max-w-xl p-6 space-y-6">
-      <h1 className="mb-6 font-display text-2xl text-foreground">Admin Settings</h1>
+    <div className="max-w-xl space-y-6">
+      <div>
+        <h1 className="font-display text-2xl text-foreground">Admin Settings</h1>
+        <p className="text-sm text-muted-foreground">
+          Platform-wide preferences and your own account security.
+        </p>
+      </div>
 
       {/* Platform Settings */}
-      <div className="rounded-lg border border-border bg-card p-6">
-        <h2 className="mb-4 font-display text-lg text-foreground">Platform Settings</h2>
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="platformName">Platform Name</Label>
-            <Input id="platformName" value={platformName} onChange={(e) => setPlatformName(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="supportEmail">Support Email</Label>
-            <Input id="supportEmail" type="email" value={supportEmail} onChange={(e) => setSupportEmail(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="deliveryFee">Delivery Fee ($)</Label>
-            <Input id="deliveryFee" type="number" value={deliveryFee} onChange={(e) => setDeliveryFee(e.target.value)} />
-          </div>
-          <Button onClick={handleSavePlatform}>Save Settings</Button>
-        </div>
-      </div>
+      <form onSubmit={handleSavePlatform} className="space-y-4 rounded-lg border border-border bg-card p-6" noValidate>
+        <h2 className="font-display text-lg text-foreground">Platform Settings</h2>
 
-      {/* Payment Configuration */}
-      <div className="rounded-lg border border-border bg-card p-6">
-        <h2 className="mb-4 font-display text-lg text-foreground">Payment Configuration</h2>
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="ecocashId">EcoCash Merchant ID</Label>
-            <Input id="ecocashId" value={ecoCashMerchantId} onChange={(e) => setEcoCashMerchantId(e.target.value)} placeholder="Enter merchant ID" />
-          </div>
-          <div>
-            <Label htmlFor="oneMoneyId">OneMoney Merchant ID</Label>
-            <Input id="oneMoneyId" value={oneMoneyMerchantId} onChange={(e) => setOneMoneyMerchantId(e.target.value)} placeholder="Enter merchant ID" />
-          </div>
-          <Button onClick={handleSavePayment}>Update Payment Settings</Button>
+        <div>
+          <Label htmlFor="platformName">Platform Name</Label>
+          <Input
+            id="platformName"
+            value={fields.platformName}
+            onChange={update("platformName")}
+            aria-invalid={Boolean(errors.platformName)}
+          />
+          {fieldError("platformName")}
         </div>
-      </div>
+
+        <div>
+          <Label htmlFor="supportEmail">Support Email</Label>
+          <Input
+            id="supportEmail"
+            type="email"
+            placeholder="support@farmconnect.zchpc.ac.zw"
+            value={fields.supportEmail}
+            onChange={update("supportEmail")}
+            aria-invalid={Boolean(errors.supportEmail)}
+          />
+          {fieldError("supportEmail")}
+        </div>
+
+        <div>
+          <Label htmlFor="deliveryFee">Delivery Fee ($)</Label>
+          <Input
+            id="deliveryFee"
+            type="number"
+            step="0.01"
+            min="0"
+            value={fields.deliveryFee}
+            onChange={update("deliveryFee")}
+            aria-invalid={Boolean(errors.deliveryFee)}
+          />
+          {fieldError("deliveryFee")}
+        </div>
+
+        <Button type="submit">
+          <Save className="mr-2 h-4 w-4" /> Save Settings
+        </Button>
+      </form>
 
       {/* Preferences */}
-      <div className="rounded-lg border border-border bg-card p-6">
-        <h2 className="mb-4 font-display text-lg text-foreground">Preferences</h2>
-        <div className="space-y-4">
-          <div>
-            <Label>Theme</Label>
-            <select
-              value={theme}
-              onChange={(e) => setTheme(e.target.value)}
-              className="border rounded px-3 py-2"
-            >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-          </div>
-          <div>
-            <Label>Notifications</Label>
-            <input
-              type="checkbox"
-              checked={notifications}
-              onChange={() => setNotifications(!notifications)}
-            />
-            <span className="ml-2">{notifications ? "Enabled" : "Disabled"}</span>
-          </div>
-          <Button onClick={handleSavePreferences}>Save Preferences</Button>
+      <div className="space-y-4 rounded-lg border border-border bg-card p-6">
+        <h2 className="font-display text-lg text-foreground">Preferences</h2>
+        <div>
+          <Label htmlFor="theme">Theme</Label>
+          <select
+            id="theme"
+            value={theme}
+            onChange={(event) => setTheme(event.target.value)}
+            className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
         </div>
+        <label className="flex items-center gap-2 text-sm text-foreground">
+          <input
+            type="checkbox"
+            checked={notifications}
+            onChange={() => setNotifications((prev) => !prev)}
+            className="h-4 w-4 rounded border-input"
+          />
+          Email notifications for orders
+        </label>
+        <Button onClick={handleSavePreferences}>
+          <Save className="mr-2 h-4 w-4" /> Save Preferences
+        </Button>
       </div>
 
-      {/* Change Password */}
+      {/* Account security */}
       <div className="rounded-lg border border-border bg-card p-6">
-        <h2 className="mb-4 font-display text-lg text-foreground">Change Password</h2>
-        <div className="space-y-4">
-          <div><Label>New Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
-          <Button onClick={handleChangePassword}>Update Password</Button>
-        </div>
+        <ChangePasswordForm />
       </div>
     </div>
   );
-}
+}

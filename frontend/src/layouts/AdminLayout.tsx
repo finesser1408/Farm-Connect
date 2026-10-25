@@ -32,7 +32,9 @@ export default function AdminLayout() {
               <span className="font-display text-lg text-foreground">Farm Connect — Admin</span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground">{user?.name || "Admin"}</span>
+              <span className="text-sm text-muted-foreground">
+                {user?.first_name || user?.username || "Admin"}
+              </span>
               <Button variant="ghost" size="sm" onClick={handleLogout}><LogOut className="mr-1 h-4 w-4" /> Logout</Button>
             </div>
           </header>

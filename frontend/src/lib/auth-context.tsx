@@ -10,14 +10,30 @@ export interface User {
   first_name: string;
   last_name: string;
   user_type: UserRole;
-  phone_number?: string;
+  phone?: string;
+  is_verified?: boolean;
+  created_at?: string;
+  farmer_profile?: { farm_name: string; location: string; description?: string } | null;
+  customer_profile?: { address: string; city: string } | null;
+}
+
+export interface RegisterPayload {
+  email: string;
+  username: string;
+  password: string;
+  password_confirm: string;
+  phone?: string;
+  user_type: UserRole;
+  first_name: string;
+  last_name: string;
 }
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (data: any) => Promise<boolean>;
+  register: (data: RegisterPayload) => Promise<boolean>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -63,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (data: any) => {
+  const register = useCallback(async (data: RegisterPayload) => {
     try {
       const response = await apiClient.post("/auth/register/", data);
       const { access, refresh, user: userData } = response.data;
@@ -83,7 +99,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isAuthenticated: !!user, isLoading }}>
+    <AuthContext.Provider
+      value={{ user, login, register, logout, refreshUser: fetchProfile, isAuthenticated: !!user, isLoading }}
+    >
       {children}
     </AuthContext.Provider>
   );

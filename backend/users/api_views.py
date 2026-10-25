@@ -17,6 +17,7 @@ from .serializers import (
     UserUpdateSerializer,
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer,
+    ChangePasswordSerializer,
     EmailOTPSendSerializer,
     EmailOTPVerifySerializer,
 )
@@ -82,8 +83,6 @@ def login_user(request):
     """
     API endpoint for user login using email and password.
     """
-    print("🔥 login_user called!")  # Debugging: Check if the view is being hit
-
     email = request.data.get('email')
     password = request.data.get('password')
 
@@ -217,6 +216,23 @@ def admin_user_detail(request, pk):
     elif request.method == 'DELETE':
         user.delete()
         return Response({'message': 'User deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def change_password(request):
+    """
+    API endpoint to change the signed-in user's password.
+
+    Requires the current password, so a hijacked session alone is not enough
+    to lock the real owner out of the account.
+    """
+    serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
+    if serializer.is_valid():
+        serializer.save()
+        return Response({'message': 'Password updated successfully.'}, status=status.HTTP_200_OK)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])

@@ -6,6 +6,7 @@ export interface OrderItem {
   product: Product;
   price: string;
   quantity: number;
+  status: string;
   get_cost: string;
 }
 
@@ -18,6 +19,7 @@ export interface Order {
   address: string;
   postal_code: string;
   city: string;
+  phone?: string;
   total_amount: string;
   status: string;
   created_at: string;
@@ -42,6 +44,8 @@ export const orderService = {
     address: string;
     postal_code: string;
     city: string;
+    phone?: string;
+    items?: { product_id: number; quantity: number }[];
   }) => {
     const response = await apiClient.post<Order>("/cart/orders/create/", data);
     return response.data;

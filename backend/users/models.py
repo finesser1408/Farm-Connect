@@ -4,7 +4,7 @@ import secrets
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import AbstractUser
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -18,7 +18,16 @@ class User(AbstractUser):
     )
     
     email = models.EmailField(_('email address'), unique=True)
-    phone = models.CharField(_('phone number'), max_length=13, blank=True, null=True)
+    phone = models.CharField(
+        _('phone number'),
+        max_length=20,
+        blank=True,
+        null=True,
+        validators=[RegexValidator(
+            regex=r'^[0-9+()\- ]{7,20}$',
+            message=_('Enter a valid phone number, e.g. +263 77 123 4567.'),
+        )],
+    )
     user_type = models.CharField(
         max_length=10,
         choices=USER_TYPE_CHOICES,

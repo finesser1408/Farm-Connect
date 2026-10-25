@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from .models import User, FarmerProfile, CustomerProfile, EmailOTP
 
 
@@ -127,6 +129,47 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         if attrs['new_password'] != attrs['new_password_confirm']:
             raise serializers.ValidationError("Passwords don't match")
         return attrs
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """Change the signed-in user's own password from inside their account."""
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, min_length=8)
+    new_password_confirm = serializers.CharField(write_only=True)
+
+    def validate_current_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Your current password is incorrect.")
+        return value
+
+    def validate(self, attrs):
+        current_password = attrs['current_password']
+        new_password = attrs['new_password']
+
+        if new_password != attrs['new_password_confirm']:
+            raise serializers.ValidationError({
+                'new_password_confirm': "Passwords don't match."
+            })
+
+        if new_password == current_password:
+            raise serializers.ValidationError({
+                'new_password': "Choose a password you haven't used before."
+            })
+
+        user = self.context['request'].user
+        try:
+            validate_password(new_password, user=user)
+        except DjangoValidationError as error:
+            raise serializers.ValidationError({'new_password': error.messages})
+
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save(update_fields=['password'])
+        return user
 
 
 class EmailOTPSendSerializer(serializers.Serializer):

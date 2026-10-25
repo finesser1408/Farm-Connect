@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const { login, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -29,9 +30,25 @@ export default function LoginPage() {
     }
   }, [user, navigate]);
 
+  const validate = () => {
+    const next: { email?: string; password?: string } = {};
+    if (!email.trim()) {
+      next.email = "Enter your email address.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      next.email = "Enter a valid email address.";
+    }
+    if (!password) {
+      next.password = "Enter your password.";
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = await login(email, password);
+    if (!validate()) return;
+
+    const success = await login(email.trim(), password);
     if (success) {
       toast({ title: "Welcome back!", description: "You have been signed in." });
     } else {
@@ -52,19 +69,47 @@ export default function LoginPage() {
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setErrors((prev) => ({ ...prev, email: undefined }));
+                }}
+                aria-invalid={Boolean(errors.email)}
+              />
+              {errors.email && (
+                <p role="alert" className="mt-1 text-xs text-destructive">{errors.email}</p>
+              )}
             </div>
             <div>
               <Label htmlFor="password">Password</Label>
               <div className="relative">
-                <Input id="password" type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setErrors((prev) => ({ ...prev, password: undefined }));
+                  }}
+                  aria-invalid={Boolean(errors.password)}
+                  className="pr-10"
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showPassword ? "Hide password" : "Show password"}>
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {errors.password && (
+                <p role="alert" className="mt-1 text-xs text-destructive">{errors.password}</p>
+              )}
             </div>
-            <div className="text-right">
-              <Link to="/forgot-password" className="text-xs text-primary hover:underline">Forgot password?</Link>
+            <div className="flex items-center justify-between text-xs">
+              <Link to="/forgot-password" className="text-primary hover:underline">Forgot password?</Link>
+              <Link to="/verify-email" className="text-primary hover:underline">Verify your email</Link>
             </div>
             <Button type="submit" className="w-full">Sign In</Button>
           </form>

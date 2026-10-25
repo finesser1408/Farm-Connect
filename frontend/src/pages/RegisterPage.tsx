@@ -31,23 +31,67 @@ export default function RegisterPage() {
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });
 
+  const [errors, setErrors] = useState<Partial<Record<keyof typeof form, string>>>({});
+
+  const clearError = (k: keyof typeof form) =>
+    setErrors((prev) => ({ ...prev, [k]: undefined }));
+
+  const validate = (): boolean => {
+    const next: Partial<Record<keyof typeof form, string>> = {};
+
+    if (!form.name.trim()) {
+      next.name = "Enter your full name.";
+    } else if (form.name.trim().length < 2) {
+      next.name = "Name is too short.";
+    }
+
+    if (!form.email.trim()) {
+      next.email = "Enter your email address.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      next.email = "Enter a valid email address.";
+    }
+
+    if (form.phone.trim() && !/^[0-9+() -]{7,20}$/.test(form.phone.trim())) {
+      next.phone = "Enter a valid phone number, e.g. +263 77 123 4567.";
+    }
+
+    if (!form.password) {
+      next.password = "Choose a password.";
+    } else if (form.password.length < 8) {
+      next.password = "Use at least 8 characters.";
+    } else if (!/[A-Za-z]/.test(form.password) || !/[0-9]/.test(form.password)) {
+      next.password = "Include at least one letter and one number.";
+    }
+
+    if (!form.confirm) {
+      next.confirm = "Confirm your password.";
+    } else if (form.password !== form.confirm) {
+      next.confirm = "Passwords don't match.";
+    }
+
+    if (role === "farmer") {
+      if (!form.farmName.trim()) next.farmName = "Tell us your farm's name.";
+      if (!form.location.trim()) next.location = "Where is your farm?";
+    }
+
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.password !== form.confirm) {
-      toast({ title: "Passwords don't match", variant: "destructive" });
-      return;
-    }
-    
+    if (!validate()) return;
+
     const nameParts = form.name.trim().split(" ");
     const firstName = nameParts[0] || "";
     const lastName = nameParts.slice(1).join(" ") || "";
 
     const registrationData = {
-      email: form.email,
-      username: form.email, // Using email as username
+      email: form.email.trim(),
+      username: form.email.trim(), // Using email as username
       password: form.password,
       password_confirm: form.confirm,
-      phone: form.phone,
+      phone: form.phone.trim(),
       user_type: role,
       first_name: firstName,
       last_name: lastName,
@@ -60,6 +104,13 @@ export default function RegisterPage() {
       toast({ title: "Registration failed", description: "Check your details and try again.", variant: "destructive" });
     }
   };
+
+  const fieldError = (k: keyof typeof form) =>
+    errors[k] ? (
+      <p role="alert" className="mt-1 text-xs text-red-500">
+        {errors[k]}
+      </p>
+    ) : null;
 
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-green-50 via-emerald-50/30 to-white">
@@ -112,11 +163,13 @@ export default function RegisterPage() {
                   id="name"
                   placeholder="Kayla Choto"
                   value={form.name}
-                  onChange={set("name")}
+                  onChange={(e) => { set("name")(e); clearError("name"); }}
                   required
+                  aria-invalid={Boolean(errors.name)}
                   className="pl-10 border-gray-200 focus:border-green-400 focus:ring-green-400/20"
                 />
               </div>
+              {fieldError("name")}
             </div>
 
             {/* Email */}
@@ -131,11 +184,13 @@ export default function RegisterPage() {
                   type="email"
                   placeholder="you@example.com"
                   value={form.email}
-                  onChange={set("email")}
+                  onChange={(e) => { set("email")(e); clearError("email"); }}
                   required
+                  aria-invalid={Boolean(errors.email)}
                   className="pl-10 border-gray-200 focus:border-green-400 focus:ring-green-400/20"
                 />
               </div>
+              {fieldError("email")}
             </div>
 
             {/* Phone */}
@@ -147,10 +202,12 @@ export default function RegisterPage() {
                   id="phone"
                   placeholder="+263 77 123 4567"
                   value={form.phone}
-                  onChange={set("phone")}
+                  onChange={(e) => { set("phone")(e); clearError("phone"); }}
+                  aria-invalid={Boolean(errors.phone)}
                   className="pl-10 border-gray-200 focus:border-green-400 focus:ring-green-400/20"
                 />
               </div>
+              {fieldError("phone")}
             </div>
 
             {/* Farmer Fields */}
@@ -167,9 +224,11 @@ export default function RegisterPage() {
                     id="farmName"
                     placeholder="Green Valley Farm"
                     value={form.farmName}
-                    onChange={set("farmName")}
+                    onChange={(e) => { set("farmName")(e); clearError("farmName"); }}
+                    aria-invalid={Boolean(errors.farmName)}
                     className="border-emerald-200 focus:border-emerald-400 focus:ring-emerald-400/20"
                   />
+                  {fieldError("farmName")}
                 </div>
 
                 <div>
@@ -180,10 +239,12 @@ export default function RegisterPage() {
                       id="location"
                       placeholder="Harare, Zimbabwe"
                       value={form.location}
-                      onChange={set("location")}
+                      onChange={(e) => { set("location")(e); clearError("location"); }}
+                      aria-invalid={Boolean(errors.location)}
                       className="pl-10 border-emerald-200 focus:border-emerald-400 focus:ring-emerald-400/20"
                     />
                   </div>
+                  {fieldError("location")}
                 </div>
 
                 <div>
@@ -213,8 +274,9 @@ export default function RegisterPage() {
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={form.password}
-                  onChange={set("password")}
+                  onChange={(e) => { set("password")(e); clearError("password"); }}
                   required
+                  aria-invalid={Boolean(errors.password)}
                   className="border-gray-200 focus:border-green-400 focus:ring-green-400/20 pr-10"
                 />
                 <button
@@ -225,6 +287,7 @@ export default function RegisterPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {fieldError("password")}
             </div>
 
             {/* Confirm Password */}
@@ -239,11 +302,13 @@ export default function RegisterPage() {
                   type="password"
                   placeholder="••••••••"
                   value={form.confirm}
-                  onChange={set("confirm")}
+                  onChange={(e) => { set("confirm")(e); clearError("confirm"); }}
                   required
+                  aria-invalid={Boolean(errors.confirm)}
                   className="pl-10 border-gray-200 focus:border-green-400 focus:ring-green-400/20"
                 />
               </div>
+              {fieldError("confirm")}
             </div>
 
             {/* Submit Button */}

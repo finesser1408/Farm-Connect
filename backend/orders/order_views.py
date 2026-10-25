@@ -58,8 +58,9 @@ def create_order(request):
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def order_list(request):
-    """Get user's orders"""
-    orders = Order.objects.filter(customer=request.user).order_by('-created_at')
+    """Get the user's orders (staff see every order on the platform)."""
+    orders = Order.objects.all() if request.user.is_staff else Order.objects.filter(customer=request.user)
+    orders = orders.order_by('-created_at')
     serializer = OrderSerializer(orders, many=True)
     return Response(serializer.data)
 

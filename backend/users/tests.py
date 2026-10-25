@@ -309,3 +309,76 @@ class EmailOTPSMTPTests(APITestCase):
             self.verify_url, {'email': 'nobody@test.com', 'code': '123456'}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ChangePasswordTests(APITestCase):
+    """Changing your password from inside your own account."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='security@test.com',
+            username='security',
+            password='OldPassw0rd!xyz',
+            user_type='customer',
+        )
+        self.url = reverse('users:password-change')
+        self.client.force_authenticate(user=self.user)
+
+    def change(self, **overrides):
+        payload = {
+            'current_password': 'OldPassw0rd!xyz',
+            'new_password': 'BrandNew1234!',
+            'new_password_confirm': 'BrandNew1234!',
+            **overrides,
+        }
+        return self.client.post(self.url, payload, format='json')
+
+    def test_change_password_with_correct_current_password(self):
+        response = self.change()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('BrandNew1234!'))
+        self.assertFalse(self.user.check_password('OldPassw0rd!xyz'))
+
+    def test_change_password_rejects_wrong_current_password(self):
+        response = self.change(current_password='not-my-password')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('current_password', response.data)
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('OldPassw0rd!xyz'))
+
+    def test_change_password_rejects_mismatched_confirmation(self):
+        response = self.change(new_password_confirm='SomethingElse123!')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('new_password_confirm', response.data)
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('OldPassw0rd!xyz'))
+
+    def test_change_password_rejects_reused_password(self):
+        response = self.change(
+            new_password='OldPassw0rd!xyz',
+            new_password_confirm='OldPassw0rd!xyz',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('new_password', response.data)
+
+    def test_change_password_rejects_too_short_password(self):
+        response = self.change(new_password='short1', new_password_confirm='short1')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('new_password', response.data)
+
+    def test_change_password_rejects_all_numeric_password(self):
+        response = self.change(
+            new_password='123456789012',
+            new_password_confirm='123456789012',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('new_password', response.data)
+
+    def test_change_password_requires_a_signed_in_user(self):
+        self.client.force_authenticate(user=None)
+        response = self.change()
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

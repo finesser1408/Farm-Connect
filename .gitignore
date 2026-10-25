@@ -40,3 +40,6 @@ __pycache__/
 # Media (uploaded product images live on the server, not in git)
 media/
 backend/media/
+
+# Production bundle built for the VM upload (built locally, never committed)
+frontend/dist-prod/

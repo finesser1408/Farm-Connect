@@ -19,16 +19,42 @@ logger = logging.getLogger(__name__)
 
 
 class EmailService:
-    """Service class for handling email notifications"""
-    
-    def __init__(self):
-        self.smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
-        self.smtp_port = int(os.environ.get('SMTP_PORT', '587'))
-        self.smtp_username = os.environ.get('SMTP_USERNAME')
-        self.smtp_password = os.environ.get('SMTP_PASSWORD')
-        self.from_email = settings.DEFAULT_FROM_EMAIL
-        self.use_tls = os.environ.get('SMTP_USE_TLS', 'True').lower() == 'true'
-        
+    """Service class for handling email notifications.
+
+    SMTP (Python's ``smtplib``) is the default transport for every message this
+    service sends.  Configuration is read from Django settings on each call so
+    environment/``override_settings`` changes take effect immediately.
+    """
+
+    @property
+    def smtp_server(self):
+        return getattr(settings, 'SMTP_SERVER', None) or 'smtp.gmail.com'
+
+    @property
+    def smtp_port(self):
+        value = getattr(settings, 'SMTP_PORT', None)
+        return int(value) if value else 587
+
+    @property
+    def smtp_username(self):
+        # Read from settings (which loads .env) so override_settings works in tests.
+        return getattr(settings, 'SMTP_USERNAME', None) or None
+
+    @property
+    def smtp_password(self):
+        return getattr(settings, 'SMTP_PASSWORD', None) or None
+
+    @property
+    def from_email(self):
+        return settings.DEFAULT_FROM_EMAIL
+
+    @property
+    def use_tls(self):
+        value = getattr(settings, 'SMTP_USE_TLS', True)
+        if isinstance(value, str):
+            return value.lower() == 'true'
+        return bool(value)
+
     def send_email_smtp(self, to_email, subject, html_content=None, text_content=None, attachments=None):
         """
         Send email using SMTP
@@ -45,9 +71,9 @@ class EmailService:
         """
         try:
             if not self.smtp_username or not self.smtp_password:
-                logger.error("SMTP credentials not configured")
-                return {'success': False, 'message': 'SMTP credentials not configured'}
-            
+                # Local relays (or an internal MTA) may not require authentication.
+                logger.warning("SMTP credentials not configured - sending without LOGIN")
+
             # Create message
             message = MIMEMultipart("alternative")
             message["Subject"] = subject
@@ -78,11 +104,15 @@ class EmailService:
             
             # Create SMTP session
             context = ssl.create_default_context()
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+            with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=30) as server:
+                server.ehlo()
                 if self.use_tls:
                     server.starttls(context=context)
-                server.login(self.smtp_username, self.smtp_password)
+                    server.ehlo()
+                if self.smtp_username and self.smtp_password:
+                    server.login(self.smtp_username, self.smtp_password)
                 server.sendmail(self.from_email, to_email, message.as_string())
+                server.quit()
             
             logger.info(f"Email sent successfully to {to_email}")
             return {'success': True, 'message': 'Email sent successfully'}
@@ -135,25 +165,25 @@ class EmailService:
             logger.error(f"Failed to send email via Resend: {str(e)}")
             return {'success': False, 'message': f'Failed to send email: {str(e)}'}
     
-    def send_email(self, to_email, subject, html_content=None, text_content=None, attachments=None, use_resend=True):
+    def send_email(self, to_email, subject, html_content=None, text_content=None, attachments=None, use_resend=False):
         """
         Send email using preferred method
-        
+
         Args:
             to_email (str): Recipient email address
             subject (str): Email subject
             html_content (str): HTML email content (optional)
             text_content (str): Plain text email content (optional)
             attachments (list): List of file paths to attach (optional)
-            use_resend (bool): Whether to use Resend (default) or SMTP
-            
+            use_resend (bool): Set True to use the Resend HTTP API instead of
+                the default Python SMTP transport
+
         Returns:
             dict: Success status and message
         """
         if use_resend:
             return self.send_email_resend(to_email, subject, html_content, text_content)
-        else:
-            return self.send_email_smtp(to_email, subject, html_content, text_content, attachments)
+        return self.send_email_smtp(to_email, subject, html_content, text_content, attachments)
     
     def send_welcome_email(self, user_email, user_name):
         """Send welcome email to new user"""
@@ -306,6 +336,55 @@ class EmailService:
         
         return self.send_email(user_email, subject, html_content, text_content)
 
+    def send_otp_email(self, user_email, user_name, code, purpose='verification', expires_minutes=10):
+        """Send a one-time passcode (OTP) email over SMTP.
+
+        Args:
+            user_email (str): Recipient email address
+            user_name (str): Recipient's name
+            code (str): The plain 6-digit code (never stored in the database)
+            purpose (str): What the code is for (shown in the email)
+            expires_minutes (int): How long the code stays valid
+
+        Returns:
+            dict: Success status and message
+        """
+        purpose_labels = {
+            'verification': 'email address verification',
+            'login': 'sign-in verification',
+            'password_reset': 'password reset',
+        }
+        purpose_text = purpose_labels.get(purpose, purpose)
+        subject = f"Your Farm Fresh Hub code: {code}"
+
+        html_content = f"""
+        <html>
+        <body>
+            <h2>Verify your email</h2>
+            <p>Dear {user_name},</p>
+            <p>Use this code to complete your {purpose_text}:</p>
+            <p style="font-size: 28px; letter-spacing: 8px; font-weight: bold;">{code}</p>
+            <p>The code expires in {expires_minutes} minutes.</p>
+            <p>If you didn't request this, you can safely ignore this email.</p>
+            <p>The Farm Fresh Hub Team</p>
+        </body>
+        </html>
+        """
+
+        text_content = f"""
+        Your Farm Fresh Hub code: {code}
+
+        Dear {user_name},
+
+        Use this code to complete your {purpose_text}: {code}
+
+        The code expires in {expires_minutes} minutes.
+        If you didn't request this, you can safely ignore this email.
+
+        The Farm Fresh Hub Team
+        """
+
+        return self.send_email(user_email, subject, html_content, text_content)
 
 # Global email service instance
 email_service = EmailService()

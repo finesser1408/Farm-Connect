@@ -1,5 +1,12 @@
-from django.db import models
+from datetime import timedelta
+import secrets
+
+from django.conf import settings
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import AbstractUser
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 class User(AbstractUser):
@@ -65,41 +72,87 @@ class CustomerProfile(models.Model):
 
     def __str__(self):
         return self.user.email
-from django.conf import settings
-from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
 
 
 class Review(models.Model):
-  # Links the review to a product (replace 'store' with your actual app name if it's different!)
-  product = models.ForeignKey(
-      'store.Product', related_name='reviews', on_delete=models.CASCADE
-  )
-
-  # Links the review to your custom user model
-  user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-
-  # Links to the exact order item as proof of purchase
-  order_item = models.OneToOneField(
-      'store.OrderItem', on_delete=models.CASCADE, null=True, blank=True
-  )
-
-  # Star rating from 1 to 5
-  rating = models.IntegerField(
-      validators=[MinValueValidator(1), MaxValueValidator(5)]
-  )
-
-  # The comment text left by the customer
-  comment = models.TextField()
-
-  # Timestamp for when it was written
-  created_at = models.DateTimeField(auto_now_add=True)
-
-  class Meta:
-    # Ensures a user can only review the exact same purchased item once
-    unique_together = ('user', 'order_item')
-
-  def __str__(self):
-    return (
-        f'{self.user.username} - {self.product.name} ({self.rating} Stars)'
+    """Verified-purchase review of a product"""
+    product = models.ForeignKey(
+        'products.Product', related_name='reviews', on_delete=models.CASCADE
     )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    order_item = models.OneToOneField(
+        'orders.OrderItem', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='review',
+    )
+    rating = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    comment = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        # A user may review a given purchased item only once
+        unique_together = ('user', 'order_item')
+
+    def __str__(self):
+        return f'{self.user.username} - {self.product.name} ({self.rating} Stars)'
+
+
+class EmailOTP(models.Model):
+    """Single-use one-time passcode delivered to a user's email over SMTP.
+
+    Only a PBKDF2 hash of the code is stored, so a leaked database row cannot
+    be turned back into a working code.
+    """
+
+    PURPOSE_CHOICES = (
+        ('verification', 'Verification'),
+        ('login', 'Login'),
+        ('password_reset', 'Password reset'),
+    )
+
+    TTL_MINUTES = 10
+    RESEND_COOLDOWN_SECONDS = 60
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='email_otps', on_delete=models.CASCADE)
+    code = models.CharField(max_length=128)
+    purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES, default='verification')
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    @classmethod
+    def issue(cls, user, purpose='verification'):
+        """Issue a fresh code, invalidating any outstanding one for the same purpose."""
+        cls.objects.filter(user=user, purpose=purpose, is_used=False).update(is_used=True)
+
+        plain_code = f"{secrets.randbelow(10**6):06d}"
+        otp = cls.objects.create(
+            user=user,
+            code=make_password(plain_code),
+            purpose=purpose,
+            expires_at=timezone.now() + timedelta(minutes=cls.TTL_MINUTES),
+        )
+        return otp, plain_code
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_valid(self):
+        return not self.is_used and not self.is_expired
+
+    def check_code(self, plain_code):
+        return bool(plain_code) and check_password(str(plain_code), self.code)
+
+    def mark_used(self):
+        self.is_used = True
+        self.save(update_fields=['is_used'])
+
+    def __str__(self):
+        return f"{self.purpose} OTP for {self.user.email}"
+

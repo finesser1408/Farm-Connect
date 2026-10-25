@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import User, FarmerProfile, CustomerProfile
+from .models import User, FarmerProfile, CustomerProfile, EmailOTP
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -127,3 +127,21 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         if attrs['new_password'] != attrs['new_password_confirm']:
             raise serializers.ValidationError("Passwords don't match")
         return attrs
+
+
+class EmailOTPSendSerializer(serializers.Serializer):
+    """Serializer for requesting an email one-time code"""
+    email = serializers.EmailField()
+    purpose = serializers.ChoiceField(choices=EmailOTP.PURPOSE_CHOICES, default='verification')
+
+
+class EmailOTPVerifySerializer(serializers.Serializer):
+    """Serializer for verifying an email one-time code"""
+    email = serializers.EmailField()
+    code = serializers.CharField(min_length=6, max_length=6)
+    purpose = serializers.ChoiceField(choices=EmailOTP.PURPOSE_CHOICES, default='verification')
+
+    def validate_code(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError("Code must be 6 digits")
+        return value

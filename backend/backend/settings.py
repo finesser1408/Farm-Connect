@@ -114,15 +114,18 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# PostgreSQL is the only database this project supports.
+# Values come from POSTGRES_* environment variables (see backend/.env).
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'farmconnect',
-        'USER': 'farmconnect_user',
-        'PASSWORD': 'user@123',
-        'HOST': 'localhost',
-        'PORT': '5432',
-
+        'NAME': os.environ.get('POSTGRES_DB', 'farmconnect'),
+        'USER': os.environ.get('POSTGRES_USER', 'farmconnect_user'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'user@123'),
+        'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
+        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        'CONN_MAX_AGE': int(os.environ.get('POSTGRES_CONN_MAX_AGE', '60')),
+        'OPTIONS': {'connect_timeout': 10},
     }
 }
 
@@ -184,6 +187,11 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'onboarding@resend.dev')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://farmconnect.zchpc.ac.zw').rstrip('/')
+
+# The site is served over HTTPS, terminated by the nginx reverse proxy in front of gunicorn.
+# Without these, Django generates http:// redirects/CSRF origins behind the proxy.
+CSRF_TRUSTED_ORIGINS = [FRONTEND_URL]
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # SMTP Configuration for custom email service
 SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')

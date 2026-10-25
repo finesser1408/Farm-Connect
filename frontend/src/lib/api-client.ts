@@ -1,6 +1,48 @@
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://farmconnect.zchpc.ac.zw/api/v1";
+// Resolve the API base URL without ever producing a mixed-content request:
+// an https:// page calling a plain http:// endpoint is blocked by the browser.
+// A missing or insecure value falls back to the same-origin "/api/v1" path,
+// which the site's nginx proxies to the Django backend.
+export const resolveApiUrl = (
+  configured: string | undefined,
+  pageProtocol: string = window.location.protocol,
+): string => {
+  if (!configured) return "/api/v1";
+
+  // Relative paths are always same-origin, so they are safe on any page.
+  if (configured.startsWith("/")) return configured.replace(/\/+$/, "");
+
+  try {
+    const target = new URL(configured);
+    if (pageProtocol === "https:" && target.protocol !== "https:") {
+      return "/api/v1";
+    }
+  } catch {
+    return "/api/v1";
+  }
+
+  return configured.replace(/\/+$/, "");
+};
+
+const API_URL = resolveApiUrl(import.meta.env.VITE_API_URL);
+
+// Origin that serves Django's /media/ files, derived from the resolved API URL
+// (empty string = same origin as the page).
+export const resolveMediaOrigin = (
+  apiUrl: string,
+  pageOrigin: string = window.location.origin,
+): string => {
+  const withoutApiPath = apiUrl.replace(/\/?api\/v1\/?$/, "");
+  if (withoutApiPath !== apiUrl) return withoutApiPath.replace(/\/+$/, "");
+  try {
+    return new URL(apiUrl, pageOrigin).origin;
+  } catch {
+    return "";
+  }
+};
+
+const API_ORIGIN = resolveMediaOrigin(API_URL);
 
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -76,12 +118,11 @@ export const getImageUrl = (path: string | null) => {
     return path;
   }
   
-  // If it's a local path starting with /media/, prepend the API base
-  const base = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://farmconnect.zchpc.ac.zw';
+  // If it's a local path starting with /media/, prepend the API origin
   if (path.startsWith('/media/')) {
-    return `${base}${path}`;
+    return `${API_ORIGIN}${path}`;
   }
   
   // Fallback: treat as local media path
-  return `${base}/media/${path}`;
+  return `${API_ORIGIN}/media/${path}`;
 };

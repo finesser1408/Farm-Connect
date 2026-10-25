@@ -27,7 +27,7 @@ class CartApiTests(APITestCase):
         )
 
     def test_add_to_cart_creates_cart_and_item(self):
-        response = self.client.post('/api/cart/add/', {'product_id': self.product.id, 'quantity': 2}, format='json')
+        response = self.client.post('/api/v1/cart/add/', {'product_id': self.product.id, 'quantity': 2}, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Cart.objects.filter(customer=self.user).count(), 1)
         cart = Cart.objects.get(customer=self.user)
@@ -37,13 +37,13 @@ class CartApiTests(APITestCase):
         self.assertEqual(str(cart_item.price), '3.50')
 
     def test_add_to_cart_increments_existing_item_quantity(self):
-        self.client.post('/api/cart/add/', {'product_id': self.product.id, 'quantity': 1}, format='json')
-        self.client.post('/api/cart/add/', {'product_id': self.product.id, 'quantity': 3}, format='json')
+        self.client.post('/api/v1/cart/add/', {'product_id': self.product.id, 'quantity': 1}, format='json')
+        self.client.post('/api/v1/cart/add/', {'product_id': self.product.id, 'quantity': 3}, format='json')
         cart = Cart.objects.get(customer=self.user)
         cart_item = cart.items.get(product=self.product)
         self.assertEqual(cart_item.quantity, 4)
 
     def test_add_to_cart_requires_authenticated_user(self):
         self.client.force_authenticate(user=None)
-        response = self.client.post('/api/cart/add/', {'product_id': self.product.id, 'quantity': 1}, format='json')
+        response = self.client.post('/api/v1/cart/add/', {'product_id': self.product.id, 'quantity': 1}, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

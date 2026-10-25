@@ -86,7 +86,7 @@ class ProductAPITestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 2)
         self.assertEqual(len(response.data['results']), 2)
-        self.assertTrue(all(item['category'] == self.category.id for item in response.data['results']))
+        self.assertTrue(all(item['category_details']['id'] == self.category.id for item in response.data['results']))
 
     def test_product_list_filter_by_price_exact(self):
         url = reverse('product-list-create')

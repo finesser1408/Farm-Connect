@@ -21,4 +21,8 @@ urlpatterns = [
     # Password Reset
     path('password-reset/', api_views.password_reset_request, name='password-reset-request'),
     path('password-reset/confirm/<str:uidb64>/<str:token>/', api_views.password_reset_confirm, name='password-reset-confirm'),
+
+    # Email one-time codes (delivered over SMTP)
+    path('otp/send/', api_views.send_email_otp, name='otp-send'),
+    path('otp/verify/', api_views.verify_email_otp, name='otp-verify'),
 ]

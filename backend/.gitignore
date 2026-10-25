@@ -14,5 +14,9 @@ media/
 __pycache__/
 *.pyc
 venv/
+source/
 .env
 .env.example
+
+# collectstatic output (served by nginx, not committed)
+staticfiles/

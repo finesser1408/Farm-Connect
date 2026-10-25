@@ -68,6 +68,18 @@ apiClient.interceptors.request.use(
   }
 );
 
+// The backend rotates refresh tokens (ROTATE_REFRESH_TOKENS +
+// BLACKLIST_AFTER_ROTATION), so the token returned by a refresh must replace
+// the old one. Keeping the old token would fail on the next refresh and force
+// the user to log in again.
+export const pickRefreshedTokens = (
+  data: { access: string; refresh?: string },
+  previousRefresh: string,
+): { access: string; refresh: string } => ({
+  access: data.access,
+  refresh: data.refresh ?? previousRefresh,
+});
+
 // Add a response interceptor to handle token refresh
 apiClient.interceptors.response.use(
   (response) => response,
@@ -86,10 +98,7 @@ apiClient.interceptors.response.use(
             refresh,
           });
 
-          const newTokens = {
-            access: response.data.access,
-            refresh, // Keep the old refresh token or use new one if provided
-          };
+          const newTokens = pickRefreshedTokens(response.data, refresh);
 
           localStorage.setItem("auth_tokens", JSON.stringify(newTokens));
           originalRequest.headers.Authorization = `Bearer ${response.data.access}`;
@@ -124,5 +133,5 @@ export const getImageUrl = (path: string | null) => {
   }
   
   // Fallback: treat as local media path
-  return `${API_ORIGIN}/media/${path}`;
+  return `${API_ORIGIN}/media/${path.replace(/^\/+/, '')}`;
 };

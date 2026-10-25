@@ -561,7 +561,7 @@ export default function About() {
                 <h3>Contact Information</h3>
                 <div className="contact-item">
                   <div className="contact-item-icon">📧</div>
-                  <div className="contact-item-text"><strong>Email</strong><a href="mailto:hello@farmfreshhub.com">hello@farmfreshhub.com</a></div>
+                  <div className="contact-item-text"><strong>Email</strong><a href="mailto:info@farmconnect.co.zw">info@farmconnect.co.zw</a></div>
                 </div>
                 <div className="contact-item">
                   <div className="contact-item-icon">📞</div>

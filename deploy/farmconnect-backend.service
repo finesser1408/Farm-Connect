@@ -1,0 +1,23 @@
+# Systemd unit for the Farm Fresh Hub Django API.
+#
+#   1. Copy to  /etc/systemd/system/farmconnect-backend.service
+#   2. Edit the two <...> paths and the user
+#   3. systemctl daemon-reload && systemctl enable --now farmconnect-backend
+#
+# The backend reads backend/.env itself (python-dotenv in settings.py), so no
+# EnvironmentFile is needed here.
+
+[Unit]
+Description=Farm Fresh Hub Django API (gunicorn)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=<replace-with-the-user-owning-the-code>
+WorkingDirectory=/var/www/farm-fresh-hub/backend
+ExecStart=/var/www/farm-fresh-hub/backend/.venv/bin/gunicorn -c gunicorn.conf.py backend.wsgi
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

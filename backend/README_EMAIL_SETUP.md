@@ -27,8 +27,8 @@ SMTP_USERNAME=your-email@gmail.com
 SMTP_PASSWORD=your-app-password
 SMTP_USE_TLS=True
 
-# Default from email
-DEFAULT_FROM_EMAIL=your-email@farmfreshhub.com
+# Default from email (shown in the From: header of every message)
+DEFAULT_FROM_EMAIL=Farm Fresh Hub <your-email@gmail.com>
 
 # Public frontend origin used to build password reset links
 FRONTEND_URL=https://farmconnect.zchpc.ac.zw
@@ -37,7 +37,15 @@ FRONTEND_URL=https://farmconnect.zchpc.ac.zw
 3. **For Gmail users:**
    - Enable 2-factor authentication
    - Generate an App Password: https://myaccount.google.com/apppasswords
-   - Use the App Password as your `EMAIL_HOST_PASSWORD`
+   - Put that App Password in `SMTP_PASSWORD` (and `EMAIL_HOST_PASSWORD` if you also use Django's own mail)
+
+> **Which variables does the app read?** `backend/settings.py` exposes two sets.
+> The Farm Connect email service (`backend/email_service.py` — welcome, order,
+> status, password reset and **OTP** emails) reads `SMTP_SERVER`, `SMTP_PORT`,
+> `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_USE_TLS` and `DEFAULT_FROM_EMAIL`.
+> The `EMAIL_*` block is Django's built-in mail backend, used by
+> `django.contrib.auth` (e.g. the admin site's own password reset). Setting both
+> to the same mailbox keeps everything consistent.
 
 ### Option 2: Resend API Configuration (Alternative)
 
@@ -67,13 +75,18 @@ DEFAULT_FROM_EMAIL=onboarding@resend.dev
 - Expiration timing (24 hours)
 - Security warnings and best practices
 
+### 4. Email Verification (OTP) Emails
+- 6-digit one-time codes for email verification, sent on request
+- Codes are stored **hashed** in the database, single-use, and expire after 10 minutes
+- Resending is rate limited to once per 60 seconds
+- Sent by `POST /api/v1/auth/otp/send/` and checked by `POST /api/v1/auth/otp/verify/`
+
 ## Email Templates
 
-All email templates are located in `backend/templates/emails/`:
-- `welcome.html` - User registration welcome email
-- `order_confirmation.html` - Order confirmation with details
-- `order_status_update.html` - Order status change notifications
-- `password_reset.html` - Password reset instructions
+Emails are composed inline in `backend/email_service.py` (HTML plus a plain-text
+alternative) and sent through `smtplib`. The `.html` files under
+`backend/templates/emails/` are **not referenced** by the service and are kept
+only as historical reference.
 
 ## Email Service Usage
 
@@ -111,14 +124,16 @@ result = email_service.send_email(
 
 ### Order Management with Email Notifications
 
-- `POST /api/orders/orders/create/` - Create order (sends confirmation email)
-- `PATCH /api/orders/orders/{order_id}/status/` - Update order status (sends status update email)
-- `POST /api/orders/orders/{order_id}/cancel/` - Cancel order (sends cancellation email)
+- `POST /api/v1/cart/orders/create/` - Create order (sends confirmation email)
+- `PATCH /api/v1/cart/orders/{order_id}/status/` - Update order status (sends status update email)
+- `POST /api/v1/cart/orders/{order_id}/cancel/` - Cancel order (sends cancellation email)
 
 ### User Management with Email Notifications
 
-- `POST /api/users/register/` - User registration (sends welcome email)
-- `POST /api/users/password-reset/` - Password reset request (sends reset email)
+- `POST /api/v1/auth/register/` - User registration (sends welcome email)
+- `POST /api/v1/auth/password-reset/` - Password reset request (sends reset email)
+- `POST /api/v1/auth/otp/send/` - Request an email verification code (sends OTP email)
+- `POST /api/v1/auth/otp/verify/` - Verify a code
 
 ## Testing Email Configuration
 

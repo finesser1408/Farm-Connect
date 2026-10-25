@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveApiUrl, resolveMediaOrigin } from "./api-client";
+import { resolveApiUrl, resolveMediaOrigin, pickRefreshedTokens } from "./api-client";
 
 describe("resolveApiUrl", () => {
   it("never returns an http:// endpoint on an https:// page (mixed content)", () => {
@@ -62,5 +62,22 @@ describe("resolveMediaOrigin", () => {
     expect(resolveMediaOrigin("https://api.example.com", "https://farmconnect.example")).toBe(
       "https://api.example.com",
     );
+  });
+});
+
+describe("pickRefreshedTokens", () => {
+  // The backend rotates refresh tokens and blacklists the old one, so storing
+  // the rotated token is what keeps the user signed in.
+  it("stores the rotated refresh token returned by the server", () => {
+    expect(
+      pickRefreshedTokens({ access: "new-access", refresh: "rotated-refresh" }, "old-refresh"),
+    ).toEqual({ access: "new-access", refresh: "rotated-refresh" });
+  });
+
+  it("falls back to the previous refresh token when the server omits one", () => {
+    expect(pickRefreshedTokens({ access: "new-access" }, "old-refresh")).toEqual({
+      access: "new-access",
+      refresh: "old-refresh",
+    });
   });
 });

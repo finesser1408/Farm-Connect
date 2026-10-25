@@ -28,9 +28,15 @@ dist-ssr
 venv/
 env/
 venv
+source/
+backend/source/
 .env
 .env/
 __pycache__/
 *.py[cod]
 *$py.class
 .freebuff/
+
+# Media (uploaded product images live on the server, not in git)
+media/
+backend/media/

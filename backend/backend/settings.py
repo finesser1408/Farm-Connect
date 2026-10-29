@@ -232,3 +232,12 @@ SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'True').lower() == 'true'
 
 # Resend Configuration
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
+# Prouction Security settings
+SECURE_SSL_REDIRECT = True
+
+SESSION_COOKIE_SECURE = True
+
+CSRF_COOKIE_SECURE = True
+SECURE_HSTS_SECONDS = 300
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False

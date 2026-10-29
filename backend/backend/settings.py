@@ -13,13 +13,14 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import os
 from pathlib import Path
 from datetime import timedelta
+
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables
-load_dotenv(os.path.join(BASE_DIR, '.env'))
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -27,6 +28,10 @@ load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    raise ImproperlyConfigured(
+        'SECRET_KEY is not set. Add it to backend/.env or provide it as an environment variable.'
+    )
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
@@ -227,6 +232,3 @@ SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'True').lower() == 'true'
 
 # Resend Configuration
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
-
-
-

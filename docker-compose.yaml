@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postrgresql:16-alpine
+    container_name: farmconnect-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: farmconnect
+      POSTGRES_USER: farmconnect_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "farmconnect_user -d farmconnect"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# Django backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: farmconnect-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: farmconnect_db
+      DB_USER: farmconnect_user
+      DB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+# React frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: farmconnect-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

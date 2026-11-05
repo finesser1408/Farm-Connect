@@ -31,8 +31,30 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
+export interface ProductQueryParams {
+  available?: "all" | "true" | "false";
+  category?: string;
+  farmer?: string;
+  location?: string;
+  max_price?: number;
+  min_price?: number;
+  ordering?: "price" | "-price" | "created_at" | "-created_at" | "name" | "-name";
+  page?: number;
+  page_size?: number;
+  price?: number;
+  search?: string;
+}
+
+export interface ProductInput {
+  name: string;
+  price: string;
+  stock: number;
+  description: string;
+  category: number | null;
+}
+
 export const productService = {
-  getProducts: async (params?: any) => {
+  getProducts: async (params?: ProductQueryParams) => {
     // Django can return either a raw list or a paginated object depending on setup.
     // We use any here and handle the branching in the component, or define a union.
     const response = await apiClient.get<Product[] | PaginatedResponse<Product>>("/products/", { params });
@@ -49,8 +71,10 @@ export const productService = {
     return response.data;
   },
 
-  createProduct: async (data: FormData | any) => {
-    const response = await apiClient.post<Product>("/products/", data);
+  createProduct: async (data: FormData | ProductInput) => {
+    const response = await apiClient.post<Product>("/products/", data, {
+      headers: data instanceof FormData ? { "Content-Type": "multipart/form-data" } : undefined,
+    });
     return response.data;
   },
 

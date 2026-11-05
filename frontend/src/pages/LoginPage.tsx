@@ -4,7 +4,7 @@ import { Eye, EyeOff, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth } from "@/lib/auth-context";
+import { getAuthErrorMessage, useAuth } from "@/lib/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import { useEffect } from "react";
@@ -21,7 +21,7 @@ export default function LoginPage() {
     if (user) {
       if (user.user_type === "farmer") {
         navigate("/farmer");
-      } else if (user.user_type === "admin") {
+      } else if (user.is_staff || user.user_type === "admin") {
         navigate("/admin");
       } else {
         navigate("/customer");
@@ -31,11 +31,15 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = await login(email, password);
-    if (success) {
+    try {
+      await login(email, password);
       toast({ title: "Welcome back!", description: "You have been signed in." });
-    } else {
-      toast({ title: "Login failed", description: "Invalid email or password.", variant: "destructive" });
+    } catch (error) {
+      toast({
+        title: "Login failed",
+        description: getAuthErrorMessage(error),
+        variant: "destructive",
+      });
     }
   };
 

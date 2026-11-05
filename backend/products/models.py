@@ -1,6 +1,18 @@
 from django.db import models
 from django.conf import settings
 
+
+APPROVED_CATEGORY_SLUGS = (
+    'vegetables',
+    'fruits',
+    'grains-and-cereals',
+    'legumes-and-pulses',
+    'root-and-tuber-crops',
+    'oilseeds',
+    'livestock-and-poultry',
+)
+
+
 class Category(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True)

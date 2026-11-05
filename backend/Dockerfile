@@ -6,6 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 # Display python output immediately in the console
 ENV PYTHONUNBUFFERED=1
+ENV HOME=/home/django
 
 # Set the working directory to /app
 WORKDIR /app
@@ -22,14 +23,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy Django application
-
-COPY . .
-
-# Create a non-root user
+# Create the non-root user and writable application directories
 RUN addgroup --system django && \
-    adduser --system --ingroup django django && \
-    chown -R django:django /app
+    adduser --system --ingroup django --home /home/django django && \
+    mkdir -p /app/media && \
+    chown -R django:django /app /home/django
+
+# Copy Django application with ownership for the runtime user
+COPY --chown=django:django . .
 
 # Run the application as the non-root user
 USER django

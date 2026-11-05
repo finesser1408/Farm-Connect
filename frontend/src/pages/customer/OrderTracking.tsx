@@ -1,19 +1,24 @@
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Check, Circle } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-
-const stages = [
-  { label: "Order Placed", time: "Mar 10, 10:00 AM" },
-  { label: "Farmer Accepted", time: "Mar 10, 11:30 AM" },
-  { label: "Processing", time: "Mar 10, 2:00 PM" },
-  { label: "Shipped", time: "Mar 11, 8:00 AM" },
-  { label: "Delivered", time: "" },
-];
+import { Order, orderService } from "@/lib/services/order-service";
 
 export default function OrderTracking() {
   const { orderId } = useParams();
-  const currentStage = 3; // mock: "Shipped"
+  const [order, setOrder] = useState<Order | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!orderId) return;
+    orderService.getOrder(Number(orderId))
+      .then(setOrder)
+      .catch(requestError => {
+        console.error("Could not load order", requestError);
+        setError(true);
+      });
+  }, [orderId]);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -23,26 +28,22 @@ export default function OrderTracking() {
           <ArrowLeft className="h-4 w-4" /> Back to Orders
         </Link>
         <h1 className="mb-2 font-display text-3xl text-foreground">Order {orderId}</h1>
-        <p className="mb-8 text-muted-foreground">Track your order status in real time</p>
-
-        <div className="mx-auto max-w-lg rounded-lg border border-border bg-card p-6">
-          <div className="space-y-0">
-            {stages.map((s, i) => (
-              <div key={s.label} className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-full ${i <= currentStage ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                    {i < currentStage ? <Check className="h-4 w-4" /> : <Circle className="h-3 w-3" />}
-                  </div>
-                  {i < stages.length - 1 && <div className={`h-10 w-0.5 ${i < currentStage ? "bg-primary" : "bg-border"}`} />}
-                </div>
-                <div className="pb-8">
-                  <p className={`font-medium ${i <= currentStage ? "text-foreground" : "text-muted-foreground"}`}>{s.label}</p>
-                  <p className="text-xs text-muted-foreground">{s.time || "Pending"}</p>
-                </div>
-              </div>
-            ))}
+        {error ? <p className="text-destructive">Could not load this order.</p> : !order ? <p>Loading order…</p> : (
+          <div className="mx-auto max-w-lg rounded-lg border border-border bg-card p-6">
+            <p className="mb-2">Status: <span className="font-medium capitalize">{order.status}</span></p>
+            <p className="mb-2 text-sm text-muted-foreground">Placed {new Date(order.created_at).toLocaleString()}</p>
+            <p className="mb-4 text-sm">Payment: {order.payment_method || "Not recorded"} ({order.payment_status || "unknown"})</p>
+            <ul className="divide-y divide-border">
+              {order.items.map(item => (
+                <li key={item.id} className="flex justify-between py-3 text-sm">
+                  <span>{item.product.name} × {item.quantity} <span className="capitalize text-muted-foreground">({item.status})</span></span>
+                  <span>${item.get_cost}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-right font-bold">Total: ${Number(order.total_amount).toFixed(2)}</p>
           </div>
-        </div>
+        )}
       </div>
       <Footer />
     </div>

@@ -138,44 +138,57 @@ farm-fresh-hub/
    ```
 
 4. **Configure environment variables**:
-   Create a `.env` file inside `backend/`:
+   For production, create the backend `.env` and the Compose project `.env`:
    ```env
    SECRET_KEY=replace-with-a-newly-generated-secret-key
-   DEBUG=True
-   ALLOWED_HOSTS=localhost,127.0.0.1
-   POSTGRES_DB=farmconnect
-   POSTGRES_USER=farmconnect_user
-   POSTGRES_PASSWORD=your-postgres-password
-   POSTGRES_HOST=localhost
-   POSTGRES_PORT=5432
+   DEBUG=False
+   ALLOWED_HOSTS=farmconnect.zchpc.ac.zw,10.50.103.90
+   DB_NAME=farmconnect_db
+   DB_USER=farmconnect_user
+   DB_PASSWORD=your-postgres-password
+   DB_HOST=db
+   DB_PORT=5432
    EMAIL_HOST=smtp.gmail.com
    EMAIL_PORT=587
    EMAIL_HOST_USER=your-email@example.com
    EMAIL_HOST_PASSWORD=your-app-password
    EMAIL_USE_TLS=True
    ```
+   Put `DB_PASSWORD` in the project-root `.env` as well; Docker Compose uses it
+   to initialize PostgreSQL. Never commit either `.env` file.
    Generate `SECRET_KEY` with:
    ```bash
    python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
    ```
-   Replace the placeholder with the generated value. This backend requires
-   PostgreSQL; create the database and role before running migrations.
+   Replace the placeholder with the generated value. Production uses PostgreSQL;
+   the Compose service and Django settings both target `farmconnect_db`.
 
 5. **Run database migrations**:
    ```bash
-   python manage.py migrate
+   docker compose up --build -d
+   docker compose exec backend python manage.py migrate
    ```
+   If the PostgreSQL data volume was initialized earlier with a different
+   database name, create `farmconnect_db` in that existing PostgreSQL instance
+   before migrating; changing `POSTGRES_DB` does not rename an existing database.
 
 6. **Create an admin superuser**:
    ```bash
-   python manage.py createsuperuser
+   docker compose exec backend python manage.py createsuperuser
    ```
+   New superusers receive the admin application role automatically.
 
-7. **Start the Django development server**:
+7. **Run the production stack**:
    ```bash
-   python manage.py runserver 8000
+   docker compose ps
    ```
-   The backend API will be available at `http://127.0.0.1:8000/`.
+   Compose runs `frontend`, `backend`, `database`, and `nginx` on a shared
+   private Docker network. PostgreSQL data persists in `postgres_data`, and
+   only Nginx publishes a host port (`127.0.0.1:8080`). It routes `/api/` to
+   Django and all other requests to the frontend. This Nginx container does not
+   terminate TLS or publish port 443. Configure DNS and the public TLS proxy to
+   forward HTTPS traffic to `127.0.0.1:8080`, preserve the original `Host`
+   header, and set `X-Forwarded-Proto: https`.
 
 ---
 
@@ -194,14 +207,15 @@ farm-fresh-hub/
 3. **Configure environment variables**:
    Create a `.env` file inside `frontend/`:
    ```env
-   VITE_API_URL=http://localhost:8000/api/v1
+   VITE_API_URL=https://farmconnect.zchpc.ac.zw/api/v1
    ```
 
 4. **Start the development server**:
    ```bash
    npm run dev
    ```
-   The frontend will be running at `http://localhost:8080/`.
+   The production Docker image uses same-origin `/api/v1` routing through Nginx.
+   For local Vite development against the deployed API, use the HTTPS API URL above.
 
 ---
 
@@ -222,6 +236,10 @@ farm-fresh-hub/
 | `/api/v1/cart/orders/<id>/` | `GET` | Retrieve order details & tracking status | Customer |
 | `/api/v1/cart/farmer/items/` | `GET` | View orders placed for farmer's products | Farmer |
 | `/api/v1/cart/farmer/items/<id>/status/` | `PATCH` | Update item status (Accept / Reject) | Farmer |
+
+EcoCash and OneMoney checkout are simulated: orders are marked paid for testing,
+but no payment request is sent and no money is charged. Cash on Delivery remains
+pending when placed.
 
 ---
 

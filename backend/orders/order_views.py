@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404
 from .models import Order, Cart, OrderItem
 from .serializers import OrderSerializer, CreateOrderSerializer, UpdateOrderStatusSerializer, OrderItemSerializer
 from backend.email_service import email_service
+from users.permissions import IsAdmin
 
 
 @api_view(['POST'])
@@ -62,6 +63,15 @@ def order_list(request):
     orders = Order.objects.filter(customer=request.user).order_by('-created_at')
     serializer = OrderSerializer(orders, many=True)
     return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdmin])
+def admin_order_list(request):
+    orders = Order.objects.select_related('customer').prefetch_related(
+        'items__product__farmer',
+    ).order_by('-created_at')
+    return Response(OrderSerializer(orders, many=True).data)
 
 
 @api_view(['GET'])
@@ -173,14 +183,11 @@ def farmer_order_items(request):
 def update_order_item_status(request, item_id):
     """Update status of a specific order item (farmer only)"""
     item = get_object_or_404(OrderItem, id=item_id, product__farmer=request.user)
-    
-    new_status = request.data.get('status')
-    if new_status:
-        # Note: In this simple model, status is on the Order, not OrderItem.
-        # But we might want to track item-level status in the future.
-        # For now, let's just allow farmers to 'accept' or 'ship' their items.
-        # We'll update the main order status if all items are shipped? 
-        # For simplicity now, we just return success.
-        return Response({"message": f"Item status updated to {new_status}"})
-    
-    return Response({"detail": "Status required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    new_status = request.data.get('status', '').lower()
+    valid_statuses = {choice[0] for choice in OrderItem.STATUS_CHOICES}
+    if new_status not in valid_statuses:
+        return Response({'detail': 'Invalid order item status.'}, status=status.HTTP_400_BAD_REQUEST)
+    item.status = new_status
+    item.save(update_fields=['status'])
+    return Response(OrderItemSerializer(item).data)

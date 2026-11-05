@@ -1,4 +1,10 @@
+from uuid import uuid4
+
+from django.db import transaction
 from rest_framework import serializers
+
+from payments.models import Payment
+from products.models import Product
 from products.serializers import ProductSerializer
 from .models import Cart, CartItem, Order, OrderItem
 
@@ -73,8 +79,8 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = OrderItem
-        fields = ['id', 'product', 'price', 'quantity', 'get_cost']
-        read_only_fields = ['id', 'product', 'price', 'get_cost']
+        fields = ['id', 'product', 'price', 'quantity', 'get_cost', 'status']
+        read_only_fields = ['id', 'product', 'price', 'get_cost', 'status']
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -83,10 +89,24 @@ class OrderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ['id', 'customer', 'first_name', 'last_name', 'email', 'address', 
+        fields = ['id', 'customer', 'first_name', 'last_name', 'email', 'phone', 'address',
                   'postal_code', 'city', 'total_amount', 'status', 'created_at', 
-                  'updated_at', 'items']
+                  'updated_at', 'items', 'payment_method', 'payment_status']
         read_only_fields = ['id', 'customer', 'total_amount', 'created_at', 'updated_at', 'items']
+
+    payment_method = serializers.SerializerMethodField()
+    payment_status = serializers.SerializerMethodField()
+
+    def get_payment_method(self, obj):
+        if not hasattr(obj, 'payment'):
+            return None
+        transaction_id = obj.payment.transaction_id or ''
+        if transaction_id.startswith('SIMULATED-'):
+            return f'{transaction_id.split("-")[1].title()} (simulated)'
+        return obj.payment.get_method_display()
+
+    def get_payment_status(self, obj):
+        return obj.payment.status if hasattr(obj, 'payment') else None
 
 
 class CreateOrderSerializer(serializers.Serializer):
@@ -94,41 +114,64 @@ class CreateOrderSerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=50)
     last_name = serializers.CharField(max_length=50)
     email = serializers.EmailField()
+    phone = serializers.CharField(max_length=20)
     address = serializers.CharField(max_length=250)
     postal_code = serializers.CharField(max_length=20)
     city = serializers.CharField(max_length=100)
+    payment_method = serializers.ChoiceField(choices=('ecocash', 'onemoney', 'cod'))
 
     def validate_email(self, value):
-        if self.instance and self.instance.customer.email != value:
+        if value != self.context['request'].user.email:
             raise serializers.ValidationError("Email must match the logged-in user's email")
         return value
 
+    @transaction.atomic
     def create(self, validated_data):
         user = self.context['request'].user
-        cart = Cart.objects.get(customer=user)
-        
-        if not cart.items.exists():
+        payment_method = validated_data.pop('payment_method')
+        cart = Cart.objects.select_for_update().filter(customer=user).first()
+        if not cart:
+            raise serializers.ValidationError({'cart': 'Your cart is empty.'})
+        cart_items = list(cart.items.select_related('product').select_for_update())
+        if not cart_items:
             raise serializers.ValidationError("Cannot create order with empty cart")
-        
-        # Create order
+
+        locked_products = []
+        for item in cart_items:
+            product = Product.objects.select_for_update().get(pk=item.product_id)
+            if not product.is_available or item.quantity > product.stock:
+                raise serializers.ValidationError({
+                    'cart': f'{product.name} is no longer available in the requested quantity.'
+                })
+            locked_products.append((item, product))
+
+        subtotal = sum((product.price * item.quantity for item, product in locked_products))
+        total_amount = subtotal + 5
         order = Order.objects.create(
             customer=user,
-            total_amount=cart.total_amount,
+            total_amount=total_amount,
+            status='pending' if payment_method == 'cod' else 'paid',
             **validated_data
         )
-        
-        # Create order items from cart items
-        for cart_item in cart.items.all():
+        for cart_item, product in locked_products:
             OrderItem.objects.create(
                 order=order,
-                product=cart_item.product,
-                price=cart_item.price,
+                product=product,
+                price=product.price,
                 quantity=cart_item.quantity
             )
-        
-        # Clear cart
+            product.stock -= cart_item.quantity
+            product.save(update_fields=['stock', 'is_available', 'updated_at'])
+
+        Payment.objects.create(
+            order=order,
+            method='cod' if payment_method == 'cod' else 'mobile_money',
+            status='pending' if payment_method == 'cod' else 'completed',
+            amount=total_amount,
+            transaction_id=None if payment_method == 'cod' else f'SIMULATED-{payment_method.upper()}-{uuid4().hex[:12]}',
+        )
+
         cart.items.all().delete()
-        
         return order
 
 

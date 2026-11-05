@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart-context";
 import { Link } from "react-router-dom";
 import type { Product } from "@/lib/services/product-service";
-import { getImageUrl } from "@/lib/api-client" ;  // ✅ Import this
+import { getImageUrl } from "@/lib/api-client";
 
 export default function ProductCard({ product }: { product: Product }) {
   const { addItem } = useCart();
+  const placeholderImage = "/placeholder.svg";
+  const imageUrl = product.image ? getImageUrl(product.image) : placeholderImage;
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -29,20 +31,12 @@ export default function ProductCard({ product }: { product: Product }) {
       {/* IMAGE SECTION */}
       <div className="relative aspect-square overflow-hidden bg-muted">
         <img
-          src={getImageUrl(product.image)} //change
+          src={imageUrl}
           alt={product.name}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           onError={(e) => {
-            // If image fails to load, show a colored background with product name
-            e.currentTarget.style.display = 'none';
-            const parent = e.currentTarget.parentElement;
-            if (parent) {
-              parent.style.backgroundColor = '#e5e7eb';
-              parent.innerHTML = `
-                <div class="flex h-full w-full items-center justify-center text-center p-4">
-                  <span class="text-sm font-medium text-gray-600">${product.name}</span>
-                </div>
-              `;
+            if (e.currentTarget.src !== new URL(placeholderImage, window.location.href).href) {
+              e.currentTarget.src = placeholderImage;
             }
           }}
         />

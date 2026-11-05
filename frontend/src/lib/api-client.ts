@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://farmconnect.zchpc.ac.zw/api/v1";
+const API_URL = (import.meta.env.VITE_API_URL || "/api/v1").replace(/\/+$/, "");
 
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -46,7 +46,7 @@ apiClient.interceptors.response.use(
 
           const newTokens = {
             access: response.data.access,
-            refresh, // Keep the old refresh token or use new one if provided
+            refresh: response.data.refresh ?? refresh,
           };
 
           localStorage.setItem("auth_tokens", JSON.stringify(newTokens));
@@ -77,15 +77,15 @@ export const getImageUrl = (path: string | null) => {
   }
   
   // Base URL without /api/v1 suffix
-  const rawApiUrl = import.meta.env.VITE_API_URL || 'https://farmconnect.zchpc.ac.zw';
+  const rawApiUrl = API_URL;
   const base = rawApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
-  
+  const origin = base || window.location.origin;
+
   if (path.startsWith('/media/')) {
-    return `${base}${path}`;
+    return `${origin}${path}`;
   }
   
   // Fallback: treat as local media path
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return `${base}/media${cleanPath}`;
+  return `${origin}/media${cleanPath}`;
 };
-

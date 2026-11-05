@@ -9,7 +9,7 @@ import { useCart } from "@/lib/cart-context";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
-import { useAuth } from "@/lib/auth-context";
+import { getAuthErrorMessage, useAuth } from "@/lib/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { orderService } from "@/lib/services/order-service";
 
@@ -20,13 +20,13 @@ const steps = [
 ];
 
 export default function CheckoutPage() {
-  const { items, totalPrice, clearCart } = useCart();
+  const { items, totalPrice, clearCart, syncCart } = useCart();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("ecocash");
+  const [paymentMethod, setPaymentMethod] = useState<"ecocash" | "onemoney" | "cod">("ecocash");
   const [delivery, setDelivery] = useState({ address: "", city: "", phone: "" });
   const deliveryCost = 5.0;
 
@@ -39,23 +39,31 @@ export default function CheckoutPage() {
 
     setIsSubmitting(true);
     try {
+      await syncCart();
       await orderService.createOrder({
         first_name: user.first_name || "Customer",
         last_name: user.last_name || "User",
         email: user.email,
+        phone: delivery.phone,
         address: delivery.address,
         city: delivery.city,
         postal_code: "0000",
+        payment_method: paymentMethod,
       });
       
       clearCart();
       navigate("/order-success");
-      toast({ title: "Order placed!", description: "Check your email for confirmation." });
-    } catch (error: any) {
+      toast({
+        title: "Order placed!",
+        description: paymentMethod === "cod"
+          ? "Your order is confirmed. Pay on delivery."
+          : "Payment simulated successfully; no real charge was made.",
+      });
+    } catch (error: unknown) {
       console.error("Order failed", error);
       toast({ 
         title: "Order failed", 
-        description: error.response?.data?.detail || "Something went wrong. Please try again.", 
+        description: getAuthErrorMessage(error),
         variant: "destructive" 
       });
     } finally {
@@ -132,14 +140,14 @@ export default function CheckoutPage() {
                       <RadioGroupItem value="ecocash" />
                       <div>
                         <p className="font-medium text-foreground">EcoCash</p>
-                        <p className="text-xs text-muted-foreground">Pay via EcoCash mobile money</p>
+                        <p className="text-xs text-muted-foreground">Simulated checkout; no real charge</p>
                       </div>
                     </label>
                     <label className={`flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors ${paymentMethod === "onemoney" ? "border-primary bg-primary/5" : "border-border"}`}>
                       <RadioGroupItem value="onemoney" />
                       <div>
                         <p className="font-medium text-foreground">OneMoney</p>
-                        <p className="text-xs text-muted-foreground">Pay via OneMoney mobile money</p>
+                        <p className="text-xs text-muted-foreground">Simulated checkout; no real charge</p>
                       </div>
                     </label>
                     <label className={`flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors ${paymentMethod === "cod" ? "border-primary bg-primary/5" : "border-border"}`}>
@@ -176,7 +184,9 @@ export default function CheckoutPage() {
                   </div>
                   <div className="flex gap-3 pt-4">
                     <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
-                    <Button onClick={handleConfirm}>Confirm Order</Button>
+                    <Button onClick={handleConfirm} disabled={isSubmitting}>
+                      {isSubmitting ? "Placing order..." : "Confirm Order"}
+                    </Button>
                   </div>
                 </div>
               )}
@@ -187,7 +197,7 @@ export default function CheckoutPage() {
           <div className="h-fit rounded-lg border border-border bg-card p-6">
             <h3 className="mb-4 font-display text-lg text-foreground">Order Summary</h3>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between text-muted-foreground"><span>Subtotal ({items.length} items)</span><span>${totalPrice.toFixed(2)}</span></div>
+              <div className="flex justify-between text-muted-foreground"><span>Subtotal ({items.reduce((count, item) => count + item.quantity, 0)} items)</span><span>${totalPrice.toFixed(2)}</span></div>
               <div className="flex justify-between text-muted-foreground"><span>Delivery</span><span>${deliveryCost.toFixed(2)}</span></div>
               <div className="border-t border-border pt-2">
                 <div className="flex justify-between text-base font-bold text-foreground"><span>Total</span><span>${(totalPrice + deliveryCost).toFixed(2)}</span></div>

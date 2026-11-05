@@ -1,18 +1,30 @@
+import { useEffect, useState } from "react";
 import { Package, Clock, CheckCircle, ShoppingBag } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-
-const stats = [
-  { label: "Total Orders", value: "0", icon: Package, color: "text-primary" },
-  { label: "Pending", value: "0", icon: Clock, color: "text-warning" },
-  { label: "Delivered", value: "0", icon: CheckCircle, color: "text-primary" },
-];
-
-const recentOrders: any[] = [];
+import { Order, orderService } from "@/lib/services/order-service";
 
 export default function CustomerDashboard() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    orderService.getOrders()
+      .then(setOrders)
+      .catch(requestError => {
+        console.error("Could not load customer dashboard orders", requestError);
+        setError(true);
+      });
+  }, []);
+
+  const stats = [
+    { label: "Total Orders", value: orders.length, icon: Package, color: "text-primary" },
+    { label: "Pending", value: orders.filter(order => order.status === "pending").length, icon: Clock, color: "text-warning" },
+    { label: "Delivered", value: orders.filter(order => order.status === "delivered").length, icon: CheckCircle, color: "text-primary" },
+  ];
+
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />
@@ -35,7 +47,9 @@ export default function CustomerDashboard() {
             <h2 className="font-display text-lg text-foreground">Recent Orders</h2>
             <Link to="/customer/orders"><Button variant="ghost" size="sm" className="text-primary">View All</Button></Link>
           </div>
-          {recentOrders.length === 0 ? (
+          {error ? (
+            <p className="p-8 text-center text-destructive">Could not load your orders. Please try again.</p>
+          ) : orders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <ShoppingBag className="mb-3 h-12 w-12 text-muted-foreground/40" />
               <p className="text-sm">No orders yet. Start shopping to see your orders here!</p>
@@ -45,12 +59,12 @@ export default function CustomerDashboard() {
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {recentOrders.map((o) => (
+              {orders.slice(0, 5).map((o) => (
                 <div key={o.id} className="flex items-center justify-between px-6 py-3 text-sm">
                   <span className="font-medium text-foreground">{o.id}</span>
-                  <span className="text-muted-foreground">{o.date}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${o.status === "Delivered" ? "bg-primary/10 text-primary" : o.status === "Shipped" ? "bg-accent/20 text-accent-foreground" : "bg-muted text-muted-foreground"}`}>{o.status}</span>
-                  <span className="font-medium text-foreground">${o.total.toFixed(2)}</span>
+                  <span className="text-muted-foreground">{new Date(o.created_at).toLocaleDateString()}</span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">{o.status}</span>
+                  <span className="font-medium text-foreground">${Number(o.total_amount).toFixed(2)}</span>
                 </div>
               ))}
             </div>

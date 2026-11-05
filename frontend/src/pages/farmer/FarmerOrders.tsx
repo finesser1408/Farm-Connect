@@ -17,13 +17,13 @@ export default function FarmerOrders() {
         toast({ title: "Error", description: "Could not load orders.", variant: "destructive" });
       })
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [toast]);
 
   const acceptOrder = async (id: number) => {
     try {
-      await orderService.updateOrderItemStatus(id, "Accepted");
-      setOrders(orders.map(o => o.id === id ? { ...o, status: "Accepted" } : o));
-      toast({ title: "Order accepted", description: "The customer will be notified." });
+      const updated = await orderService.updateOrderItemStatus(id, "accepted");
+      setOrders(current => current.map(order => order.id === id ? updated : order));
+      toast({ title: "Order accepted", description: "The item status was updated." });
     } catch (error) {
       toast({ title: "Error", description: "Failed to update order.", variant: "destructive" });
     }
@@ -31,9 +31,9 @@ export default function FarmerOrders() {
 
   const rejectOrder = async (id: number) => {
     try {
-      await orderService.updateOrderItemStatus(id, "Rejected");
-      setOrders(orders.filter(o => o.id !== id));
-      toast({ title: "Order rejected", description: "Order removed from your list." });
+      const updated = await orderService.updateOrderItemStatus(id, "rejected");
+      setOrders(current => current.map(order => order.id === id ? updated : order));
+      toast({ title: "Order rejected", description: "The item status was updated." });
     } catch (error) {
       toast({ title: "Error", description: "Failed to update order.", variant: "destructive" });
     }
@@ -69,8 +69,9 @@ export default function FarmerOrders() {
                     <td className="px-6 py-3 font-medium">${o.get_cost}</td>
                     <td className="px-6 py-3 text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" className="text-primary" onClick={() => acceptOrder(o.id)}><CheckCircle className="mr-1 h-4 w-4" /> Accept</Button>
-                        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => rejectOrder(o.id)}><XCircle className="mr-1 h-4 w-4" /> Reject</Button>
+                        <span className="px-2 text-muted-foreground capitalize">{o.status}</span>
+                        <Button variant="ghost" size="sm" className="text-primary" disabled={o.status !== "pending"} onClick={() => acceptOrder(o.id)}><CheckCircle className="mr-1 h-4 w-4" /> Accept</Button>
+                        <Button variant="ghost" size="sm" className="text-destructive" disabled={o.status !== "pending"} onClick={() => rejectOrder(o.id)}><XCircle className="mr-1 h-4 w-4" /> Reject</Button>
                       </div>
                     </td>
                   </tr>

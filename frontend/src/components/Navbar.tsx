@@ -86,7 +86,7 @@ export default function Navbar() {
             {user ? (
               <>
                 <Link 
-                  to={user.user_type === "farmer" ? "/farmer" : user.user_type === "admin" ? "/admin" : "/customer"} 
+                  to={user.is_staff || user.user_type === "admin" ? "/admin" : user.user_type === "farmer" ? "/farmer" : "/customer"}
                   onClick={() => setMobileOpen(false)} 
                   className="rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
                 >

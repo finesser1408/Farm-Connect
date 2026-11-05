@@ -8,7 +8,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
 from django.utils.text import slugify
-from .models import Product, Category
+from .models import APPROVED_CATEGORY_SLUGS, Product, Category
 from .serializers import ProductSerializer, CategorySerializer
 from users.permissions import IsFarmer
 
@@ -28,10 +28,23 @@ class ProductPagination(PageNumberPagination):
 def products_list_create(request):
     """List all products or create a new product."""
     if request.method == 'GET':
-        products = Product.objects.all().order_by('-created_at')
+        products = Product.objects.all()
+        farmer_filter = request.query_params.get('farmer')
+        ordering = request.query_params.get('ordering', '-created_at')
+        if ordering not in {'price', '-price', 'created_at', '-created_at', 'name', '-name'}:
+            return Response({'detail': 'Invalid ordering value.'}, status=status.HTTP_400_BAD_REQUEST)
+        products = products.order_by(ordering)
         available = request.query_params.get('available')
-        if available is not None:
+        is_admin = request.user.is_authenticated and (
+            request.user.is_staff or request.user.user_type == 'admin'
+        )
+        if available is not None and available.lower() == 'all':
+            if not is_admin:
+                return Response({'detail': 'Only admins can view unavailable products.'}, status=status.HTTP_403_FORBIDDEN)
+        elif available is not None:
             products = products.filter(is_available=available.lower() in ('1', 'true', 'yes'))
+        elif not (farmer_filter == 'me' and request.user.is_authenticated):
+            products = products.filter(is_available=True)
 
         search = request.query_params.get('search')
         if search:
@@ -67,7 +80,6 @@ def products_list_create(request):
                 return Response({'detail': 'Invalid max_price filter.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Filtering by farmer
-        farmer_filter = request.query_params.get('farmer')
         if farmer_filter == 'me' and request.user.is_authenticated:
             products = products.filter(farmer=request.user)
         elif farmer_filter:
@@ -83,7 +95,11 @@ def products_list_create(request):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     if request.method == 'POST':
-        if not request.user.is_authenticated or (request.user.user_type != 'farmer' and not request.user.is_staff):
+        if not request.user.is_authenticated or (
+            request.user.user_type != 'farmer'
+            and not request.user.is_staff
+            and request.user.user_type != 'admin'
+        ):
             return Response({'detail': 'Only farmers can create products.'}, status=status.HTTP_403_FORBIDDEN)
             
         serializer = ProductSerializer(data=request.data, context={'request': request})
@@ -116,7 +132,11 @@ def product_detail(request, slug):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     if request.method in ['PUT', 'PATCH', 'DELETE']:
-        if product.farmer != request.user and request.user.user_type != 'admin':
+        if not request.user.is_authenticated or (
+            product.farmer != request.user
+            and not request.user.is_staff
+            and request.user.user_type != 'admin'
+        ):
             return Response({'detail': 'You do not have permission to modify this product.'}, status=status.HTTP_403_FORBIDDEN)
 
     if request.method in ['PUT', 'PATCH']:
@@ -138,7 +158,11 @@ def product_detail(request, slug):
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def category_list(request):
-    """List all categories."""
-    categories = Category.objects.all()
+    """List the approved product categories."""
+    categories = Category.objects.filter(slug__in=APPROVED_CATEGORY_SLUGS)
+    categories = sorted(
+        categories,
+        key=lambda category: APPROVED_CATEGORY_SLUGS.index(category.slug),
+    )
     serializer = CategorySerializer(categories, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)

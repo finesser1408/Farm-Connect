@@ -4,7 +4,7 @@ import { Eye, EyeOff, Leaf, CheckCircle, User, Mail, Phone, Building, MapPin, Cl
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth } from "@/lib/auth-context";
+import { getAuthErrorMessage, useAuth } from "@/lib/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import { useEffect } from "react";
@@ -21,7 +21,7 @@ export default function RegisterPage() {
     if (user) {
       if (user.user_type === "farmer") {
         navigate("/farmer");
-      } else if (user.user_type === "admin") {
+      } else if (user.is_staff || user.user_type === "admin") {
         navigate("/admin");
       } else {
         navigate("/customer");
@@ -51,13 +51,22 @@ export default function RegisterPage() {
       user_type: role,
       first_name: firstName,
       last_name: lastName,
+      ...(role === "farmer" && {
+        farm_name: form.farmName,
+        location: form.location,
+        farm_description: form.farmDesc,
+      }),
     };
 
-    const success = await register(registrationData);
-    if (success) {
+    try {
+      await register(registrationData);
       toast({ title: "Account created!", description: "Welcome to Farm Connect." });
-    } else {
-      toast({ title: "Registration failed", description: "Check your details and try again.", variant: "destructive" });
+    } catch (error) {
+      toast({
+        title: "Registration failed",
+        description: getAuthErrorMessage(error),
+        variant: "destructive",
+      });
     }
   };
 
@@ -162,18 +171,19 @@ export default function RegisterPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="farmName" className="text-sm font-medium text-gray-700">Farm Name</Label>
+                  <Label htmlFor="farmName" className="text-sm font-medium text-gray-700">Farm Name *</Label>
                   <Input
                     id="farmName"
                     placeholder="Green Valley Farm"
                     value={form.farmName}
                     onChange={set("farmName")}
+                    required
                     className="border-emerald-200 focus:border-emerald-400 focus:ring-emerald-400/20"
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="location" className="text-sm font-medium text-gray-700">Location</Label>
+                  <Label htmlFor="location" className="text-sm font-medium text-gray-700">Location *</Label>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
@@ -181,6 +191,7 @@ export default function RegisterPage() {
                       placeholder="Harare, Zimbabwe"
                       value={form.location}
                       onChange={set("location")}
+                      required
                       className="pl-10 border-emerald-200 focus:border-emerald-400 focus:ring-emerald-400/20"
                     />
                   </div>

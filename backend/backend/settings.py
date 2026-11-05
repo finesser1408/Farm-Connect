@@ -37,10 +37,12 @@ if not SECRET_KEY:
 DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
 
 ALLOWED_HOSTS = [
-    'farmconnect.zchpc.ac.zw',
-    '10.50.103.90',
-    '127.0.0.1',
-    'localhost',
+    host.strip()
+    for host in os.environ.get("ALLOWED_HOSTS",
+
+"farmconnect.hpc.ac.zw, 10.50.103.90").split(",")
+    if host.strip(
+                               )
 ]
 
 # Frontend URL
@@ -50,26 +52,16 @@ FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://farmconnect.zchpc.ac.zw')
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://farmconnect.zchpc.ac.zw',
-    'http://farmconnect.zchpc.ac.zw',
-    'http://10.50.103.90',
-    'http://localhost:8080',
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:8080',
-    'http://127.0.0.1:5173',
+    origin.strip()
+    for origin in os.environ.get('CSRF_TRUSTED_ORIGINS', FRONTEND_URL).split(',')
+    if origin.strip()
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
-    'https://farmconnect.zchpc.ac.zw',
-    'http://farmconnect.zchpc.ac.zw',
-    'http://10.50.103.90',
-    'http://localhost:8080',
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:8080',
-    'http://127.0.0.1:5173',
+    origin.strip()
+    for origin in os.environ.get('CORS_ALLOWED_ORIGINS', FRONTEND_URL).split(',')
+    if origin.strip()
 ]
 
 # Application definition
@@ -156,10 +148,10 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
+        'NAME': os.environ.get('DB_NAME', 'farmconnect_db'),
+        'USER': os.environ.get('DB_USER', 'farmconnect_user'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
         'PORT': os.getenv('DB_PORT', '5432'),
 
     }
@@ -233,7 +225,7 @@ SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'True').lower() == 'true'
 # Resend Configuration
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
 # Prouction Security settings
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = False  # Set to True in production
 
 SESSION_COOKIE_SECURE = True
 

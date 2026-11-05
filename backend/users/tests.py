@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from unittest.mock import patch
 from rest_framework import status
 from rest_framework.test import APITestCase
 from users.models import FarmerProfile, CustomerProfile
@@ -31,11 +32,63 @@ class UserProfileAPITests(APITestCase):
         # Access token for authentication
         self.client.force_authenticate(user=self.farmer_user)
 
+    def test_superuser_is_created_with_admin_role(self):
+        superuser = User.objects.create_superuser(
+            username='newadmin',
+            email='newadmin@test.com',
+            password='password123',
+        )
+
+        self.assertEqual(superuser.user_type, 'admin')
+
     def test_get_user_profile(self):
         url = reverse('users:profile')
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['email'], 'farmer@test.com')
+
+    @patch('users.api_views.email_service.send_welcome_email')
+    def test_farmer_registration_creates_required_profile(self, send_email):
+        send_email.return_value = {'success': True, 'message': 'sent'}
+        response = self.client.post(reverse('users:register'), {
+            'email': 'newfarmer@example.com',
+            'username': 'newfarmer',
+            'password': 'password123',
+            'password_confirm': 'password123',
+            'user_type': 'farmer',
+            'farm_name': 'Green Acres',
+            'location': 'Harare',
+            'farm_description': 'Vegetable farm',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        profile = FarmerProfile.objects.get(user__email='newfarmer@example.com')
+        self.assertEqual(profile.farm_name, 'Green Acres')
+        self.assertEqual(profile.location, 'Harare')
+
+    def test_farmer_registration_requires_farm_details(self):
+        response = self.client.post(reverse('users:register'), {
+            'email': 'newfarmer@example.com',
+            'username': 'newfarmer',
+            'password': 'password123',
+            'password_confirm': 'password123',
+            'user_type': 'farmer',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(User.objects.filter(email='newfarmer@example.com').exists())
+
+    def test_public_registration_cannot_create_admin(self):
+        response = self.client.post(reverse('users:register'), {
+            'email': 'newadmin@example.com',
+            'username': 'newadmin',
+            'password': 'password123',
+            'password_confirm': 'password123',
+            'user_type': 'admin',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(User.objects.filter(email='newadmin@example.com').exists())
 
     def test_update_farmer_profile(self):
         url = reverse('users:update-profile')

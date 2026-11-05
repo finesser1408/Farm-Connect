@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
+from django.db import transaction
 from .models import User, FarmerProfile, CustomerProfile
 
 
@@ -7,26 +8,47 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     """Serializer for user registration"""
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True)
+    farm_name = serializers.CharField(write_only=True, required=False, max_length=255)
+    location = serializers.CharField(write_only=True, required=False, max_length=255)
+    farm_description = serializers.CharField(write_only=True, required=False, allow_blank=True)
     
     class Meta:
         model = User
-        fields = ['email', 'username', 'password', 'password_confirm', 'phone', 'user_type', 'first_name', 'last_name']
+        fields = [
+            'email', 'username', 'password', 'password_confirm', 'phone',
+            'user_type', 'first_name', 'last_name', 'farm_name', 'location',
+            'farm_description',
+        ]
     
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError("Passwords don't match")
+        if attrs.get('user_type') == 'admin':
+            raise serializers.ValidationError({'user_type': 'Admin accounts cannot be created through public registration.'})
+        if attrs.get('user_type') == 'farmer':
+            for field in ('farm_name', 'location'):
+                if not attrs.get(field, '').strip():
+                    raise serializers.ValidationError({field: 'This field is required for farmers.'})
         return attrs
     
+    @transaction.atomic
     def create(self, validated_data):
         validated_data.pop('password_confirm')
         password = validated_data.pop('password')
+        farm_name = validated_data.pop('farm_name', '')
+        location = validated_data.pop('location', '')
+        farm_description = validated_data.pop('farm_description', '')
         user = User.objects.create_user(**validated_data)
         user.set_password(password)
         user.save()
         
-        # Create profile based on user type
         if user.user_type == 'farmer':
-            FarmerProfile.objects.create(user=user)
+            FarmerProfile.objects.create(
+                user=user,
+                farm_name=farm_name,
+                location=location,
+                description=farm_description,
+            )
         elif user.user_type == 'customer':
             CustomerProfile.objects.create(user=user)
             
@@ -54,9 +76,9 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['id', 'email', 'username', 'phone', 'user_type', 'is_verified', 
+        fields = ['id', 'email', 'username', 'phone', 'user_type', 'is_staff', 'is_verified',
                   'created_at', 'farmer_profile', 'customer_profile', 'first_name', 'last_name']
-        read_only_fields = ['id', 'created_at', 'is_verified', 'user_type']
+        read_only_fields = ['id', 'created_at', 'is_staff', 'is_verified', 'user_type']
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):

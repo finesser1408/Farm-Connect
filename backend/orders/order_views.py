@@ -6,11 +6,11 @@ from django.shortcuts import get_object_or_404
 from .models import Order, Cart, OrderItem
 from .serializers import OrderSerializer, CreateOrderSerializer, UpdateOrderStatusSerializer, OrderItemSerializer
 from backend.email_service import email_service
-from users.permissions import IsAdmin
+from users.permissions import IsAdmin, IsCustomer
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.IsAuthenticated, IsCustomer])
 def create_order(request):
     """Create an order from cart items"""
     serializer = CreateOrderSerializer(data=request.data, context={'request': request})

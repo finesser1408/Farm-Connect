@@ -168,6 +168,43 @@ class ProductAPITestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_product_creation_rejects_anonymous_and_customer_users(self):
+        product_data = {
+            'name': 'Unauthorized product',
+            'price': '2.50',
+            'stock': 3,
+            'description': 'Fresh produce',
+            'category': self.category.id,
+        }
+        url = reverse('product-list-create')
+
+        response = self.client.post(url, product_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        customer = get_user_model().objects.create_user(
+            username='customer',
+            email='customer@example.com',
+            password='password123',
+            user_type='customer',
+        )
+        self.client.force_authenticate(user=customer)
+        response = self.client.post(url, product_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_farmer_cannot_modify_another_farmers_product(self):
+        product = Product.objects.get(slug='kigali-kale')
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.patch(
+            reverse('product-detail', args=[product.slug]),
+            {'name': 'Changed by another farmer'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        product.refresh_from_db()
+        self.assertEqual(product.name, 'Kigali Kale')
+
     def test_category_api_returns_only_approved_categories(self):
         response = self.client.get(reverse('category-list'))
 

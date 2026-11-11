@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,11 +15,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const { login, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+  const returnToCheckout = (location.state as { from?: { pathname?: string } } | null)
+    ?.from?.pathname === "/checkout";
 
   useEffect(() => {
     if (user) {
-      if (user.user_type === "farmer") {
+      if (returnToCheckout && user.user_type === "customer") {
+        navigate("/checkout", { replace: true });
+      } else if (user.user_type === "farmer") {
         navigate("/farmer");
       } else if (user.is_staff || user.user_type === "admin") {
         navigate("/admin");
@@ -27,7 +32,7 @@ export default function LoginPage() {
         navigate("/customer");
       }
     }
-  }, [user, navigate]);
+  }, [user, navigate, returnToCheckout]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

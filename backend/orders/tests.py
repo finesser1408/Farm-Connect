@@ -50,6 +50,32 @@ class CartApiTests(APITestCase):
         response = self.client.post('/api/v1/cart/add/', {'product_id': self.product.id, 'quantity': 1}, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_order_creation_requires_authenticated_customer(self):
+        order_data = {
+            'first_name': 'Test',
+            'last_name': 'User',
+            'email': 'test@example.com',
+            'phone': '+263771234567',
+            'address': 'Test Road',
+            'postal_code': '0000',
+            'city': 'Harare',
+            'payment_method': 'cod',
+        }
+
+        self.client.force_authenticate(user=None)
+        response = self.client.post('/api/v1/cart/orders/create/', order_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        farmer = get_user_model().objects.create_user(
+            email='farmer@example.com',
+            username='farmer',
+            password='password123',
+            user_type='farmer',
+        )
+        self.client.force_authenticate(user=farmer)
+        response = self.client.post('/api/v1/cart/orders/create/', order_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_cart_quantity_can_be_set_and_item_removed(self):
         self.client.post('/api/v1/cart/add/', {'product_id': self.product.id, 'quantity': 2}, format='json')
         response = self.client.patch(

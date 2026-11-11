@@ -8,6 +8,7 @@ import { CartProvider } from "@/lib/cart-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { ProductProvider } from "@/lib/product-context";
 import PageLoader from "@/components/PageLoader";
+import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 
 // Lazy loaded pages
 const Index = lazy(() => import("./pages/Index"));
@@ -57,15 +58,17 @@ const App = () => (
                 <Route path="/marketplace" element={<Marketplace />} />
                 <Route path="/product/:id" element={<ProductDetails />} />
                 <Route path="/cart" element={<CartPage />} />
-                <Route path="/checkout" element={<CheckoutPage />} />
+                <Route path="/checkout" element={<RoleProtectedRoute role="customer"><CheckoutPage /></RoleProtectedRoute>} />
                 <Route path="/order-success" element={<OrderSuccessPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/about" element={<About />} />
-                <Route path="/customer" element={<CustomerDashboard />} />
-                <Route path="/customer/orders" element={<CustomerOrders />} />
-                <Route path="/customer/orders/:orderId" element={<OrderTracking />} />
-                <Route path="/farmer" element={<FarmerLayout />}>
+                <Route path="/customer" element={<RoleProtectedRoute role="customer" />}>
+                  <Route index element={<CustomerDashboard />} />
+                  <Route path="orders" element={<CustomerOrders />} />
+                  <Route path="orders/:orderId" element={<OrderTracking />} />
+                </Route>
+                <Route path="/farmer" element={<RoleProtectedRoute role="farmer"><FarmerLayout /></RoleProtectedRoute>}>
                   <Route index element={<FarmerDashboard />} />
                   <Route path="products" element={<FarmerProducts />} />
                   <Route path="products/new" element={<AddProduct />} />
@@ -73,7 +76,7 @@ const App = () => (
                   <Route path="analytics" element={<FarmerAnalytics />} />
                   <Route path="profile" element={<FarmerProfile />} />
                 </Route>
-                <Route path="/admin" element={<AdminLayout />}>
+                <Route path="/admin" element={<RoleProtectedRoute role="admin"><AdminLayout /></RoleProtectedRoute>}>
                   <Route index element={<AdminDashboard />} />
                   <Route path="users" element={<AdminUsers />} />
                   <Route path="farmers" element={<AdminFarmers />} />

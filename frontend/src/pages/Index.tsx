@@ -4,6 +4,7 @@
 import { Button } from "@/components/ui/button";
  import { motion } from "framer-motion";
 import ProductCard from "@/components/ProductCard";
+import ShopByCategorySection from "@/components/ShopByCategorySection";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useQuery } from "@tanstack/react-query";
@@ -374,57 +375,13 @@ const Index = () => {
         </div>
       </section>
 
-      {/* ========== CATEGORIES SECTION - Enhanced ========== */}
-      <section className="py-20">
-        <div className="container">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mb-12 text-center"
-          >
-            <span className="text-sm font-semibold text-green-600 uppercase tracking-wider">Categories</span>
-            <h2 className="mt-2 font-display text-3xl font-bold text-gray-900 md:text-4xl">
-              Shop by <span className="text-green-700">Category</span>
-            </h2>
-            <p className="mt-3 text-gray-500 max-w-md mx-auto">
-              Explore our curated selection of farm-fresh products
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {categoriesList.map((cat, i) => (
-              <motion.div
-                key={cat.slug}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-                whileHover={{ y: -4 }}
-              >
-                <Link
-                  to={`/marketplace?category=${cat.slug}`}
-                  className="group relative flex aspect-square flex-col items-center justify-end overflow-hidden rounded-2xl shadow-md"
-                >
-                  <img 
-                    src={categoryImages[cat.slug] || catVegetables}
-                    alt={cat.name} 
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" 
-                  />
-                  {/* Overlay - Darker for better text contrast */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
-                  {/* Category name with better styling */}
-                  <span className="relative z-10 mb-4 font-display text-lg font-semibold text-white drop-shadow-lg">
-                    {cat.name}
-                  </span>
-                  {/* Hover indicator */}
-                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-0 bg-white transition-all duration-300 group-hover:w-1/3" />
-                </Link>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* ========== CATEGORIES SECTION - Interactive Shop by Category ========== */}
+      <ShopByCategorySection
+        categories={categoriesList}
+        categoryImages={categoryImages}
+        fallbackCategoryImage={catVegetables}
+        isCategoriesLoading={isCategoriesLoading}
+      />
 
       {/* ========== FEATURED PRODUCTS - Enhanced ========== */}
       <section className="bg-gray-50/80 py-20">

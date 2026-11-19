@@ -73,7 +73,7 @@ export default function LoginPage() {
               </div>
             </div>
             <div className="text-right">
-              <a href="#" className="text-xs text-primary hover:underline">Forgot password?</a>
+              <Link to="/password-reset" className="text-xs text-primary hover:underline">Forgot password?</Link>
             </div>
             <Button type="submit" className="w-full">Sign In</Button>
           </form>

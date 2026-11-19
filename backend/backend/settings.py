@@ -108,6 +108,9 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ),
+    'DEFAULT_THROTTLE_RATES': {
+        'password_reset': '5/hour',
+    },
     'EXCEPTION_HANDLER': 'backend.exceptions.global_exception_handler',
 }
 
@@ -201,6 +204,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
 
 # Media files
 MEDIA_URL = '/media/'
@@ -208,12 +212,30 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Email Configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'onboarding@resend.dev')
+EMAIL_HOST = os.environ.get('EMAIL_HOST') or os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT') or os.environ.get('SMTP_PORT', '587'))
+EMAIL_USE_TLS = (os.environ.get('EMAIL_USE_TLS') or os.environ.get('SMTP_USE_TLS', 'True')).lower() == 'true'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') or os.environ.get('SMTP_USERNAME')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD') or os.environ.get('SMTP_PASSWORD')
+DEFAULT_FROM_EMAIL = (
+    os.environ.get('DEFAULT_FROM_EMAIL')
+    or EMAIL_HOST_USER
+    or os.environ.get('SMTP_USERNAME')
+    or 'onboarding@resend.dev'
+)
+
+PASSWORD_RESET_EMAIL_PROVIDER = os.environ.get(
+    'PASSWORD_RESET_EMAIL_PROVIDER',
+    'resend',
+).strip().lower()
+if PASSWORD_RESET_EMAIL_PROVIDER not in {'resend', 'django'}:
+    raise ImproperlyConfigured(
+        'PASSWORD_RESET_EMAIL_PROVIDER must be "resend" or "django".'
+    )
+if PASSWORD_RESET_EMAIL_PROVIDER == 'django' and not DEBUG:
+    raise ImproperlyConfigured(
+        'The Django email provider for password resets is only available when DEBUG is enabled.'
+    )
 
 # SMTP Configuration for custom email service
 SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')

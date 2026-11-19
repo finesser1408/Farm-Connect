@@ -2,6 +2,7 @@ from django.conf import settings
 from django.shortcuts import get_object_or_404
 from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import throttle_classes
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate, login, logout  # ✅ Added 'authenticate'
@@ -21,6 +22,10 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from backend.email_service import email_service
+from .throttles import PasswordResetRateThrottle
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(['POST'])
@@ -216,58 +221,64 @@ def admin_user_detail(request, pk):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([PasswordResetRateThrottle])
 def password_reset_request(request):
     """
     API endpoint to request a password reset
     """
     serializer = PasswordResetRequestSerializer(data=request.data)
-    if serializer.is_valid():
-        email = serializer.validated_data['email']
-        user = User.objects.filter(email=email).first()
-        if user:
-            token = default_token_generator.make_token(user)
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
-            
-            # Link to frontend password reset confirmation
-            frontend_url = getattr(settings, 'FRONTEND_URL', 'https://farmconnect.zchpc.ac.zw').rstrip('/')
-            reset_url = f"{frontend_url}/password-reset/confirm/{uid}/{token}/"
-            
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    email = serializer.validated_data['email']
+    user = User.objects.filter(email=email).first()
+    if user:
+        token = default_token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://farmconnect.zchpc.ac.zw').rstrip('/')
+        reset_url = f"{frontend_url}/password-reset/confirm/{uid}/{token}/"
+
+        try:
             email_result = email_service.send_password_reset(
                 user_email=email,
                 user_name=user.get_full_name() or email.split('@')[0],
                 reset_link=reset_url
             )
-            
-            if email_result['success']:
-                return Response({'message': 'Password reset email sent'}, status=status.HTTP_200_OK)
-            else:
-                return Response({'error': 'Failed to send email'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        # Always return 200 to avoid email enumeration
-        return Response({'message': 'Password reset email sent if account exists'}, status=status.HTTP_200_OK)
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            if not email_result.get('success'):
+                logger.error("Password reset email delivery failed")
+        except Exception:
+            logger.error("Password reset email delivery failed")
+
+    return Response(
+        {'message': 'If an account with that email exists, password reset instructions will be sent.'},
+        status=status.HTTP_200_OK
+    )
 
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([PasswordResetRateThrottle])
 def password_reset_confirm(request, uidb64, token):
     """
     API endpoint to confirm password reset
     """
-    serializer = PasswordResetConfirmSerializer(data=request.data)
-    if serializer.is_valid():
-        try:
-            uid = force_str(urlsafe_base64_decode(uidb64))
-            user = User.objects.get(pk=uid)
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-            user = None
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = User.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        user = None
 
-        if user is not None and default_token_generator.check_token(user, token):
-            user.set_password(serializer.validated_data['new_password'])
-            user.save()
-            return Response({'message': 'Password reset successful'}, status=status.HTTP_200_OK)
-        else:
-            return Response({'error': 'Invalid or expired token'}, status=status.HTTP_400_BAD_REQUEST)
-            
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    if user is None or not default_token_generator.check_token(user, token):
+        return Response({'error': 'Invalid or expired reset link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    serializer = PasswordResetConfirmSerializer(
+        data=request.data,
+        context={'user': user},
+    )
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    user.set_password(serializer.validated_data['new_password'])
+    user.save(update_fields=['password'])
+    return Response({'message': 'Password reset successful.'}, status=status.HTTP_200_OK)

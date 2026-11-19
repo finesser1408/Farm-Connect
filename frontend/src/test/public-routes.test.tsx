@@ -44,6 +44,14 @@ vi.mock("../pages/LoginPage", () => ({
   default: () => <p>Login page</p>,
 }));
 
+vi.mock("../pages/PasswordResetRequestPage", () => ({
+  default: () => <p>Password reset request page</p>,
+}));
+
+vi.mock("../pages/PasswordResetConfirmPage", () => ({
+  default: () => <p>Password reset confirmation page</p>,
+}));
+
 describe("public shopping routes", () => {
   beforeEach(() => {
     window.history.replaceState({}, "", "/");
@@ -53,6 +61,7 @@ describe("public shopping routes", () => {
       isAuthenticated: false,
       login: vi.fn(),
       register: vi.fn(),
+      updateProfile: vi.fn(),
       logout: vi.fn(),
     });
   });
@@ -76,5 +85,16 @@ describe("public shopping routes", () => {
 
     expect(await screen.findByText("Login page")).toBeInTheDocument();
     expect(screen.queryByText("Checkout public page")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["/password-reset", "Password reset request page"],
+    ["/password-reset/confirm/NA/token", "Password reset confirmation page"],
+  ])("exposes the public password reset route %s", async (path, expectedPage) => {
+    window.history.replaceState({}, "", path);
+
+    render(<App />);
+
+    expect(await screen.findByText(expectedPage)).toBeInTheDocument();
   });
 });

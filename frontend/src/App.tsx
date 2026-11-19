@@ -19,6 +19,8 @@ const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const OrderSuccessPage = lazy(() => import("./pages/OrderSuccessPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
+const PasswordResetRequestPage = lazy(() => import("./pages/PasswordResetRequestPage"));
+const PasswordResetConfirmPage = lazy(() => import("./pages/PasswordResetConfirmPage"));
 const CustomerDashboard = lazy(() => import("./pages/customer/CustomerDashboard"));
 const CustomerOrders = lazy(() => import("./pages/customer/CustomerOrders"));
 const OrderTracking = lazy(() => import("./pages/customer/OrderTracking"));
@@ -62,6 +64,8 @@ const App = () => (
                 <Route path="/order-success" element={<OrderSuccessPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/password-reset" element={<PasswordResetRequestPage />} />
+                <Route path="/password-reset/confirm/:uidb64/:token" element={<PasswordResetConfirmPage />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/customer" element={<RoleProtectedRoute role="customer" />}>
                   <Route index element={<CustomerDashboard />} />

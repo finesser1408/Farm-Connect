@@ -303,7 +303,28 @@ class EmailService:
         If you didn't request this, please ignore this email.
         The FarmConnect Team
         """
-        
+
+        if settings.DEBUG and settings.PASSWORD_RESET_EMAIL_PROVIDER == 'django':
+            try:
+                sent_count = send_mail(
+                    subject,
+                    text_content,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [user_email],
+                    html_message=html_content,
+                    fail_silently=False,
+                )
+            except Exception:
+                logger.error("Failed to send password reset email via Django email backend")
+                return {'success': False, 'message': 'Failed to send email'}
+
+            if sent_count == 1:
+                logger.info("Password reset email sent via Django email backend")
+                return {'success': True, 'message': 'Email sent successfully'}
+
+            logger.error("Django email backend did not send the password reset email")
+            return {'success': False, 'message': 'Failed to send email'}
+
         return self.send_email(user_email, subject, html_content, text_content)
 
 

@@ -31,10 +31,18 @@ export interface RegisterData {
   farm_description?: string;
 }
 
+export interface ProfileUpdateData {
+  farmer_profile?: Partial<NonNullable<User["farmer_profile"]>>;
+  customer_profile?: Partial<NonNullable<User["customer_profile"]>>;
+  phone?: string;
+  username?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   register: (data: RegisterData) => Promise<boolean>;
+  updateProfile: (data: ProfileUpdateData) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -85,13 +93,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   }, []);
 
+  const updateProfile = useCallback(async (data: ProfileUpdateData) => {
+    const response = await apiClient.patch<{ user: User }>("/auth/profile/update/", data);
+    setUser(response.data.user);
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem("auth_tokens");
     setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isAuthenticated: !!user, isLoading }}>
+    <AuthContext.Provider value={{ user, login, register, updateProfile, logout, isAuthenticated: !!user, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

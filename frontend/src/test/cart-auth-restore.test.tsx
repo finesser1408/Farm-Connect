@@ -72,6 +72,7 @@ describe("guest cart restoration after authentication", () => {
       isAuthenticated: true,
       login: vi.fn(),
       register: vi.fn(),
+      updateProfile: vi.fn(),
       logout: vi.fn(),
     });
 

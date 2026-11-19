@@ -64,6 +64,7 @@ describe("RoleProtectedRoute", () => {
       isAuthenticated: false,
       login: vi.fn(),
       register: vi.fn(),
+      updateProfile: vi.fn(),
       logout: vi.fn(),
     });
 
@@ -83,6 +84,7 @@ describe("RoleProtectedRoute", () => {
       isAuthenticated: false,
       login: vi.fn(),
       register: vi.fn(),
+      updateProfile: vi.fn(),
       logout: vi.fn(),
     });
 
@@ -99,6 +101,7 @@ describe("RoleProtectedRoute", () => {
       isAuthenticated: false,
       login: vi.fn(),
       register: vi.fn(),
+      updateProfile: vi.fn(),
       logout: vi.fn(),
     });
 
@@ -123,6 +126,7 @@ describe("RoleProtectedRoute", () => {
       isAuthenticated: true,
       login: vi.fn(),
       register: vi.fn(),
+      updateProfile: vi.fn(),
       logout: vi.fn(),
     });
 
@@ -138,6 +142,7 @@ describe("RoleProtectedRoute", () => {
       isAuthenticated: true,
       login: vi.fn(),
       register: vi.fn(),
+      updateProfile: vi.fn(),
       logout: vi.fn(),
     });
 
@@ -153,6 +158,7 @@ describe("RoleProtectedRoute", () => {
       isAuthenticated: true,
       login: vi.fn(),
       register: vi.fn(),
+      updateProfile: vi.fn(),
       logout: vi.fn(),
     });
 
@@ -168,6 +174,7 @@ describe("RoleProtectedRoute", () => {
       isAuthenticated: true,
       login: vi.fn(),
       register: vi.fn(),
+      updateProfile: vi.fn(),
       logout: vi.fn(),
     });
 

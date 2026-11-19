@@ -1,9 +1,15 @@
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.urls import reverse
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from django.contrib.auth.tokens import default_token_generator
 from unittest.mock import patch
 from rest_framework import status
 from rest_framework.test import APITestCase
 from users.models import FarmerProfile, CustomerProfile
+from django.test import override_settings
+from backend.email_service import EmailService
 
 User = get_user_model()
 
@@ -57,7 +63,7 @@ class UserProfileAPITests(APITestCase):
             'password_confirm': 'password123',
             'user_type': 'farmer',
             'farm_name': 'Green Acres',
-            'location': 'Harare',
+            'location': '  Harare  ',
             'farm_description': 'Vegetable farm',
         }, format='json')
 
@@ -73,6 +79,20 @@ class UserProfileAPITests(APITestCase):
             'password': 'password123',
             'password_confirm': 'password123',
             'user_type': 'farmer',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(User.objects.filter(email='newfarmer@example.com').exists())
+
+    def test_farmer_registration_rejects_whitespace_location(self):
+        response = self.client.post(reverse('users:register'), {
+            'email': 'newfarmer@example.com',
+            'username': 'newfarmer',
+            'password': 'password123',
+            'password_confirm': 'password123',
+            'user_type': 'farmer',
+            'farm_name': 'Green Acres',
+            'location': '   ',
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -108,6 +128,18 @@ class UserProfileAPITests(APITestCase):
         # Verify in DB
         profile = FarmerProfile.objects.get(user=self.farmer_user)
         self.assertEqual(profile.farm_name, 'Sunny Farm')
+        self.assertEqual(profile.location, 'Nakuru')
+
+    def test_farmer_profile_rejects_blank_location(self):
+        FarmerProfile.objects.create(user=self.farmer_user, farm_name='Green Acres', location='')
+        response = self.client.patch(
+            reverse('users:update-profile'),
+            {'farmer_profile': {'location': '   '}},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(FarmerProfile.objects.get(user=self.farmer_user).location, '')
 
     def test_update_customer_profile(self):
         self.client.force_authenticate(user=self.customer_user)
@@ -155,13 +187,173 @@ class UserProfileAPITests(APITestCase):
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_password_reset_request(self):
+    @patch('users.api_views.email_service.send_password_reset')
+    def test_password_reset_request(self, send_password_reset):
+        send_password_reset.return_value = {'success': True, 'message': 'sent'}
         url = reverse('users:password-reset-request')
         data = {'email': 'farmer@test.com'}
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Note: In a test environment without a real API key, send_resend_email will fail
-        # but return 200/500 depending on implementation. 
-        # I'll check for 200 (if account exists) or 500 (if API fails).
-        # Actually, my view returns 500 if send_resend_email fails.
-        # I should probably mock send_resend_email in a real test suite.
+        self.assertEqual(
+            response.data['message'],
+            'If an account with that email exists, password reset instructions will be sent.',
+        )
+        send_password_reset.assert_called_once()
+
+
+class PasswordResetAPITests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(
+            username='resetuser',
+            email='reset@example.com',
+            password='Original-password-472!',
+        )
+        self.request_url = reverse('users:password-reset-request')
+        self.new_password = 'FarmConnect-Unique-Reset-Password-472!'
+
+    def reset_url_parts(self):
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = default_token_generator.make_token(self.user)
+        url = reverse('users:password-reset-confirm', args=[uid, token])
+        return uid, token, url
+
+    def test_existing_and_unknown_emails_receive_same_response(self):
+        generic_message = (
+            'If an account with that email exists, password reset instructions will be sent.'
+        )
+        with patch('users.api_views.email_service.send_password_reset') as send_reset:
+            send_reset.return_value = {'success': True, 'message': 'sent'}
+            existing = self.client.post(self.request_url, {'email': self.user.email}, format='json')
+            unknown = self.client.post(
+                self.request_url,
+                {'email': 'unknown@example.com'},
+                format='json',
+            )
+
+        self.assertEqual(existing.status_code, status.HTTP_200_OK)
+        self.assertEqual(unknown.status_code, status.HTTP_200_OK)
+        self.assertEqual(existing.data['message'], generic_message)
+        self.assertEqual(unknown.data['message'], generic_message)
+        send_reset.assert_called_once()
+        self.assertIn('/password-reset/confirm/', send_reset.call_args.kwargs['reset_link'])
+
+    def test_email_delivery_failure_does_not_reveal_account_existence(self):
+        with patch(
+            'users.api_views.email_service.send_password_reset',
+            return_value={'success': False, 'message': 'mail unavailable'},
+        ):
+            response = self.client.post(
+                self.request_url,
+                {'email': self.user.email},
+                format='json',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('If an account', response.data['message'])
+
+    def test_password_reset_changes_password_and_invalidates_used_token(self):
+        uid, token, url = self.reset_url_parts()
+        data = {
+            'new_password': self.new_password,
+            'new_password_confirm': self.new_password,
+        }
+
+        response = self.client.post(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.new_password))
+
+        reused_response = self.client.post(url, data, format='json')
+        self.assertEqual(reused_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(reused_response.data['error'], 'Invalid or expired reset link.')
+
+    def test_invalid_and_expired_reset_tokens_are_rejected(self):
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        url = reverse('users:password-reset-confirm', args=[uid, 'invalid-token'])
+        data = {
+            'new_password': self.new_password,
+            'new_password_confirm': self.new_password,
+        }
+        invalid_response = self.client.post(url, data, format='json')
+        self.assertEqual(invalid_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(invalid_response.data['error'], 'Invalid or expired reset link.')
+
+        uid, token, expired_url = self.reset_url_parts()
+        with override_settings(PASSWORD_RESET_TIMEOUT=-1):
+            expired_response = self.client.post(expired_url, data, format='json')
+
+        self.assertEqual(expired_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(expired_response.data['error'], 'Invalid or expired reset link.')
+
+    def test_password_reset_uses_django_password_validators(self):
+        _, _, url = self.reset_url_parts()
+        response = self.client.post(url, {
+            'new_password': 'password123',
+            'new_password_confirm': 'password123',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('new_password', response.data)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('Original-password-472!'))
+
+    def test_password_reset_endpoints_are_rate_limited(self):
+        responses = [
+            self.client.post(
+                self.request_url,
+                {'email': 'unknown@example.com'},
+                format='json',
+            )
+            for _ in range(6)
+        ]
+
+        self.assertTrue(all(
+            response.status_code == status.HTTP_200_OK
+            for response in responses[:5]
+        ))
+        self.assertEqual(responses[5].status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+
+class PasswordResetEmailProviderTests(APITestCase):
+    def setUp(self):
+        self.email_service = EmailService()
+
+    @override_settings(
+        DEBUG=True,
+        PASSWORD_RESET_EMAIL_PROVIDER='django',
+        DEFAULT_FROM_EMAIL='dev@example.com',
+    )
+    @patch('backend.email_service.send_mail', return_value=1)
+    def test_development_provider_uses_django_email_backend(self, send_mail):
+        result = self.email_service.send_password_reset(
+            'person@example.com',
+            'Test User',
+            'https://farmconnect.example/password-reset/confirm/uid/token/',
+        )
+
+        self.assertTrue(result['success'])
+        send_mail.assert_called_once()
+        args, kwargs = send_mail.call_args
+        self.assertEqual(args[2], 'dev@example.com')
+        self.assertEqual(args[3], ['person@example.com'])
+        self.assertIn('/password-reset/confirm/uid/token/', kwargs['html_message'])
+        self.assertEqual(kwargs['fail_silently'], False)
+
+    @override_settings(
+        DEBUG=False,
+        PASSWORD_RESET_EMAIL_PROVIDER='resend',
+    )
+    @patch('backend.email_service.EmailService.send_email_resend')
+    def test_production_provider_remains_resend(self, send_resend):
+        send_resend.return_value = {'success': True, 'message': 'sent'}
+
+        result = self.email_service.send_password_reset(
+            'person@example.com',
+            'Test User',
+            'https://farmconnect.example/password-reset/confirm/uid/token/',
+        )
+
+        self.assertTrue(result['success'])
+        send_resend.assert_called_once()

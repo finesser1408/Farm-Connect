@@ -37,6 +37,14 @@ export default function RegisterPage() {
       toast({ title: "Passwords don't match", variant: "destructive" });
       return;
     }
+    if (role === "farmer" && !form.location.trim()) {
+      toast({
+        title: "Location is required",
+        description: "Enter the city, town, or district where your farm is based.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     const nameParts = form.name.trim().split(" ");
     const firstName = nameParts[0] || "";
@@ -53,7 +61,7 @@ export default function RegisterPage() {
       last_name: lastName,
       ...(role === "farmer" && {
         farm_name: form.farmName,
-        location: form.location,
+        location: form.location.trim(),
         farm_description: form.farmDesc,
       }),
     };
@@ -188,9 +196,10 @@ export default function RegisterPage() {
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
                       id="location"
-                      placeholder="Harare, Zimbabwe"
+                      placeholder="City, town, or district (e.g. Harare)"
                       value={form.location}
                       onChange={set("location")}
+                      maxLength={255}
                       required
                       className="pl-10 border-emerald-200 focus:border-emerald-400 focus:ring-emerald-400/20"
                     />

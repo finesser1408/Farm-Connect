@@ -41,6 +41,7 @@ describe("login redirect", () => {
       isAuthenticated: true,
       login: vi.fn(),
       register: vi.fn(),
+      updateProfile: vi.fn(),
       logout: vi.fn(),
     });
 
@@ -68,6 +69,7 @@ describe("login redirect", () => {
       isAuthenticated: true,
       login: vi.fn(),
       register: vi.fn(),
+      updateProfile: vi.fn(),
       logout: vi.fn(),
     });
 

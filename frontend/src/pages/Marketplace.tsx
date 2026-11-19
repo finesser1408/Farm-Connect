@@ -79,7 +79,7 @@ export default function Marketplace() {
           </div>
         </div>
 
-        <div className="flex gap-8">
+        <div className="flex flex-col gap-8 sm:flex-row">
           {/* Sidebar Filters */}
           <aside className={`${showFilters ? "block" : "hidden"} w-full shrink-0 sm:block sm:w-48`}>
             <div className="rounded-lg border border-border bg-card p-4">

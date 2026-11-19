@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.db import transaction
+from django.contrib.auth.password_validation import validate_password
 from .models import User, FarmerProfile, CustomerProfile
 
 
@@ -27,8 +28,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'user_type': 'Admin accounts cannot be created through public registration.'})
         if attrs.get('user_type') == 'farmer':
             for field in ('farm_name', 'location'):
-                if not attrs.get(field, '').strip():
+                value = (attrs.get(field) or '').strip()
+                if not value:
                     raise serializers.ValidationError({field: 'This field is required for farmers.'})
+                attrs[field] = value
         return attrs
     
     @transaction.atomic
@@ -60,6 +63,12 @@ class FarmerProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = FarmerProfile
         fields = ['farm_name', 'location', 'description']
+
+    def validate_location(self, value):
+        location = value.strip()
+        if not location:
+            raise serializers.ValidationError('Enter a city, town, or district.')
+        return location
 
 
 class CustomerProfileSerializer(serializers.ModelSerializer):
@@ -101,7 +110,10 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 
         # Update profile fields
         if instance.user_type == 'farmer' and farmer_profile_data:
-            profile, _ = FarmerProfile.objects.get_or_create(user=instance)
+            profile, _ = FarmerProfile.objects.get_or_create(
+                user=instance,
+                defaults={'farm_name': ''},
+            )
             for attr, value in farmer_profile_data.items():
                 setattr(profile, attr, value)
             profile.save()
@@ -144,6 +156,10 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     """Serializer for password reset confirmation"""
     new_password = serializers.CharField(min_length=8)
     new_password_confirm = serializers.CharField()
+
+    def validate_new_password(self, value):
+        validate_password(value, user=self.context.get('user'))
+        return value
 
     def validate(self, attrs):
         if attrs['new_password'] != attrs['new_password_confirm']:

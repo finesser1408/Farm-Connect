@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from .models import Product, Category
 
@@ -51,8 +52,8 @@ class CategorySerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    farmer_email = serializers.EmailField(source='farmer.email', read_only=True)
     farmer_name = serializers.SerializerMethodField()
+    farmer_location = serializers.SerializerMethodField()
     slug = serializers.SlugField(read_only=True)
     category_details = CategorySerializer(source='category', read_only=True)
     category = serializers.PrimaryKeyRelatedField(
@@ -66,8 +67,8 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id',
-            'farmer_email',
             'farmer_name',
+            'farmer_location',
             'category',
             'category_details',
             'name',
@@ -80,7 +81,13 @@ class ProductSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'farmer_email', 'farmer_name', 'category_details', 'created_at', 'updated_at', 'is_available']
+        read_only_fields = ['id', 'farmer_name', 'farmer_location', 'category_details', 'created_at', 'updated_at', 'is_available']
 
     def get_farmer_name(self, obj):
-        return f"{obj.farmer.first_name} {obj.farmer.last_name}".strip() or obj.farmer.email
+        return f"{obj.farmer.first_name} {obj.farmer.last_name}".strip()
+
+    def get_farmer_location(self, obj):
+        try:
+            return obj.farmer.farmer_profile.location.strip()
+        except ObjectDoesNotExist:
+            return ''

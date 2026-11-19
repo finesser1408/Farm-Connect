@@ -28,7 +28,11 @@ class ProductPagination(PageNumberPagination):
 def products_list_create(request):
     """List all products or create a new product."""
     if request.method == 'GET':
-        products = Product.objects.all()
+        products = Product.objects.select_related(
+            'farmer',
+            'farmer__farmer_profile',
+            'category',
+        )
         farmer_filter = request.query_params.get('farmer')
         ordering = request.query_params.get('ordering', '-created_at')
         if ordering not in {'price', '-price', 'created_at', '-created_at', 'name', '-name'}:
@@ -125,7 +129,14 @@ def products_list_create(request):
 @parser_classes([MultiPartParser, FormParser, JSONParser])
 def product_detail(request, slug):
     """Retrieve, update, or delete a product by slug."""
-    product = get_object_or_404(Product, slug=slug)
+    product = get_object_or_404(
+        Product.objects.select_related(
+            'farmer',
+            'farmer__farmer_profile',
+            'category',
+        ),
+        slug=slug,
+    )
 
     if request.method == 'GET':
         serializer = ProductSerializer(product, context={'request': request})

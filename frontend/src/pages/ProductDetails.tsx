@@ -1,5 +1,5 @@
 import { useParams, Link } from "react-router-dom";
-import { ShoppingCart, MapPin, Star, ArrowLeft, Plus, Minus } from "lucide-react";
+import { ShoppingCart, MapPin, UserRound, Star, ArrowLeft, Plus, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-context";
@@ -28,7 +28,7 @@ export default function ProductDetails() {
   });
 
   const productsArray = Array.isArray(relatedProducts) ? relatedProducts : relatedProducts?.results || [];
-  const related = productsArray.filter((p: any) => p.slug !== slug).slice(0, 4);
+  const related = productsArray.filter((product) => product.slug !== slug).slice(0, 4);
 
   if (isLoading) {
     return (
@@ -102,8 +102,13 @@ export default function ProductDetails() {
               <span className="flex items-center gap-1"><Star className="h-4 w-4 fill-accent text-accent" /> 4.5</span>
               <span>(24 reviews)</span>
             </div>
-            <div className="mb-2 flex items-center gap-1 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4" /> {product.farmer_name}
+            <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+              <MapPin className="h-4 w-4 shrink-0" />
+              <span>{product.farmer_location?.trim() || "Location not provided"}</span>
+            </div>
+            <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+              <UserRound className="h-4 w-4 shrink-0" />
+              <span>Farmer: {product.farmer_name?.trim() || "Farmer name unavailable"}</span>
             </div>
             <span className="mb-6 text-3xl font-bold text-foreground">${parseFloat(product.price).toFixed(2)}</span>
 

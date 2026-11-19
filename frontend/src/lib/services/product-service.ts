@@ -2,8 +2,8 @@ import apiClient from "../api-client";
 
 export interface Product {
   id: number;
-  farmer_email: string;
   farmer_name: string;
+  farmer_location: string;
   category: number | null;
   category_details: Category | null;
   name: string;

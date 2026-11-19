@@ -98,6 +98,26 @@ class ProductAPITestCase(APITestCase):
         self.assertEqual(len(response.data['results']), 1)
         self.assertEqual(response.data['results'][0]['name'], 'Organic Apple')
 
+    def test_product_detail_includes_farmer_name_and_location(self):
+        self.user.first_name = 'Tariro'
+        self.user.last_name = 'Moyo'
+        self.user.save(update_fields=['first_name', 'last_name'])
+
+        response = self.client.get(reverse('product-detail', args=['organic-apple']))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['farmer_name'], 'Tariro Moyo')
+        self.assertEqual(response.data['farmer_location'], 'Nairobi')
+        self.assertNotIn('farmer_email', response.data)
+
+    def test_product_detail_without_farmer_profile_returns_empty_location(self):
+        FarmerProfile.objects.get(user=self.user).delete()
+
+        response = self.client.get(reverse('product-detail', args=['organic-apple']))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['farmer_location'], '')
+
     def test_product_list_filter_by_category(self):
         url = reverse('product-list-create')
         response = self.client.get(url, {'category': 'fruits'})

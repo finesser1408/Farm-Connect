@@ -82,4 +82,429 @@
   .font-sans {
     font-family: var(--font-sans);
   }
+
+  .home-hero__background {
+    object-position: 50% 52%;
+  }
+
+  .home-hero__enter {
+    opacity: 0;
+    transform: translateY(18px);
+    animation: home-hero-enter 650ms ease-out both;
+  }
+
+  .home-hero__enter--label {
+    animation-delay: 80ms;
+  }
+
+  .home-hero__enter--heading {
+    animation-delay: 200ms;
+  }
+
+  .home-hero__enter--description {
+    animation-delay: 320ms;
+  }
+
+  .home-hero__enter--primary-button {
+    animation-delay: 440ms;
+  }
+
+  .home-hero__enter--secondary-button {
+    animation-delay: 560ms;
+  }
+
+  .home-hero__enter--frame-1 {
+    animation-delay: 680ms;
+  }
+
+  .home-hero__enter--frame-2 {
+    animation-delay: 800ms;
+  }
+
+  .home-hero__enter--frame-3 {
+    animation-delay: 920ms;
+  }
+
+  .home-hero__enter--frame-4 {
+    animation-delay: 1.04s;
+  }
+
+  .home-hero__enter--frame-5 {
+    animation-delay: 1.16s;
+  }
+
+  .home-hero__enter--frame-6 {
+    animation-delay: 1.28s;
+  }
+
+  @keyframes home-hero-enter {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .home-hero__collage {
+    position: relative;
+    display: block;
+    width: 100%;
+    max-width: 34rem;
+    height: clamp(13.75rem, 70vw, 18.75rem);
+    margin-inline: auto;
+  }
+
+  .home-hero__desktop-gallery {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  .home-hero__mobile-gallery {
+    display: none;
+  }
+
+  .home-hero__frame {
+    position: absolute;
+    overflow: hidden;
+    border: 1px solid rgb(255 255 255 / 55%);
+    border-radius: 1rem;
+    background: rgb(255 255 255 / 10%);
+    box-shadow: 0 18px 48px rgb(0 0 0 / 28%);
+  }
+
+  .home-hero__frame--focal {
+    z-index: 2;
+    top: 16%;
+    left: 29%;
+    width: 43%;
+    height: 70%;
+  }
+
+  .home-hero__frame--beans {
+    z-index: 1;
+    top: 3%;
+    left: 0;
+    width: 32%;
+    height: 34%;
+  }
+
+  .home-hero__frame--potatoes {
+    z-index: 1;
+    top: 0;
+    right: 0;
+    width: 31%;
+    height: 34%;
+  }
+
+  .home-hero__frame--groundnuts {
+    z-index: 1;
+    bottom: 1%;
+    left: 0;
+    width: 32%;
+    height: 36%;
+  }
+
+  .home-hero__frame--vegetables {
+    z-index: 1;
+    top: 38%;
+    right: 0;
+    width: 31%;
+    height: 34%;
+  }
+
+  .home-hero__frame--grains {
+    z-index: 1;
+    right: 0;
+    bottom: 0;
+    width: 31%;
+    height: 24%;
+  }
+
+  .hero-image-frame {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-image-frame__image {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: opacity 850ms ease-in-out;
+  }
+
+  .hero-image-frame__image--visible {
+    opacity: 1;
+  }
+
+  .hero-image-frame__image--hidden {
+    opacity: 0;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .home-hero__background {
+      object-position: 50% 50%;
+    }
+
+    .home-hero__collage {
+      height: clamp(22rem, 40vw, 29rem);
+    }
+
+    .home-hero__frame {
+      border-radius: 1.25rem;
+    }
+  }
+
+  @media (min-width: 768px) and (max-width: 1199px) {
+    .home-hero__frame--vegetables,
+    .home-hero__frame--grains {
+      display: none;
+    }
+
+    .home-hero__frame--focal {
+      left: 32%;
+      width: 42%;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .home-hero__collage {
+      height: auto;
+    }
+
+    .home-hero__desktop-gallery {
+      display: none;
+    }
+
+    .home-hero__mobile-gallery {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.625rem;
+      width: 100%;
+      margin-top: 0.25rem;
+    }
+
+    .home-hero__mobile-image {
+      display: block;
+      width: 100%;
+      height: clamp(4.5rem, 24vw, 6.25rem);
+      border: 1px solid rgb(255 255 255 / 55%);
+      border-radius: 0.75rem;
+      object-fit: cover;
+      box-shadow: 0 8px 20px rgb(0 0 0 / 22%);
+      animation: home-hero-mobile-float 3.6s ease-in-out infinite;
+    }
+
+    .home-hero__mobile-image--2 {
+      animation-delay: 600ms;
+    }
+
+    .home-hero__mobile-image--3 {
+      animation-delay: 1.2s;
+    }
+
+    .home-hero__frame {
+      border-radius: 1rem;
+    }
+
+    .home-hero__frame--focal {
+      top: 0;
+      left: 4%;
+      width: 62%;
+      height: 88%;
+    }
+
+    .home-hero__frame--beans {
+      top: auto;
+      right: 0;
+      bottom: 0;
+      left: auto;
+      width: 46%;
+      height: 42%;
+    }
+
+    .home-hero__frame--potatoes,
+    .home-hero__frame--groundnuts,
+    .home-hero__frame--vegetables,
+    .home-hero__frame--grains {
+      display: none;
+    }
+  }
+
+  @keyframes home-hero-mobile-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+
+  .community-float {
+    position: absolute;
+    z-index: 2;
+    top: 40%;
+    left: clamp(11rem, 24vw, 22rem);
+    overflow: hidden;
+    aspect-ratio: 1;
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: 1.25rem;
+    --orbit-x: clamp(9rem, 22vw, 19rem);
+    --orbit-y: clamp(7rem, 12vh, 8.5rem);
+    opacity: 0.4;
+    filter: brightness(0.75) saturate(0.9);
+    pointer-events: none;
+    animation: community-orbit 30s linear infinite;
+  }
+
+  .community-float img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .community-float--tomatoes {
+    width: clamp(4.5rem, 9vw, 7rem);
+  }
+
+  .community-float--carrots {
+    width: clamp(4rem, 7vw, 6rem);
+    animation-delay: -6s;
+  }
+
+  .community-float--grains {
+    width: clamp(4.5rem, 8vw, 6.5rem);
+    animation-delay: -12s;
+  }
+
+  .community-float--spinach {
+    width: clamp(4rem, 7vw, 5.5rem);
+    animation-delay: -18s;
+  }
+
+  .community-float--vegetables {
+    width: clamp(3.75rem, 6vw, 5rem);
+    animation-delay: -24s;
+  }
+
+  .community-cta__farmer {
+    opacity: 0.9;
+  }
+
+  @keyframes community-orbit {
+    0% {
+      transform: translate(-50%, -50%) translate(0, calc(var(--orbit-y) * -1));
+    }
+
+    12.5% {
+      transform: translate(-50%, -50%) translate(calc(var(--orbit-x) * 0.707), calc(var(--orbit-y) * -0.707));
+    }
+
+    25% {
+      transform: translate(-50%, -50%) translate(var(--orbit-x), 0);
+    }
+
+    37.5% {
+      transform: translate(-50%, -50%) translate(calc(var(--orbit-x) * 0.707), calc(var(--orbit-y) * 0.707));
+    }
+
+    50% {
+      transform: translate(-50%, -50%) translate(0, var(--orbit-y));
+    }
+
+    62.5% {
+      transform: translate(-50%, -50%) translate(calc(var(--orbit-x) * -0.707), calc(var(--orbit-y) * 0.707));
+    }
+
+    75% {
+      transform: translate(-50%, -50%) translate(calc(var(--orbit-x) * -1), 0);
+    }
+
+    87.5% {
+      transform: translate(-50%, -50%) translate(calc(var(--orbit-x) * -0.707), calc(var(--orbit-y) * -0.707));
+    }
+
+    100% {
+      transform: translate(-50%, -50%) translate(0, calc(var(--orbit-y) * -1));
+    }
+  }
+
+  @media (max-width: 767px) {
+    .community-cta {
+      min-height: 0;
+      padding-block: 2rem;
+    }
+
+    .community-cta__farmer {
+      inset: auto 0 0;
+      width: 100%;
+      height: 68%;
+      object-fit: contain;
+      object-position: right bottom;
+    }
+
+    .community-cta > .container {
+      min-height: 0;
+      align-items: center;
+      padding-bottom: 0;
+    }
+
+    .community-cta .container > div {
+      width: 100%;
+      max-width: 34rem;
+    }
+
+    .community-cta h2 {
+      max-width: 21rem;
+      font-size: clamp(1.5rem, 7vw, 2rem);
+      line-height: 1.15;
+    }
+
+    .community-cta p {
+      max-width: 32rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+    }
+
+    .community-float {
+      left: 50%;
+      top: 31%;
+      --orbit-x: min(32vw, 7rem);
+      --orbit-y: min(12vh, 3.75rem);
+      width: clamp(2.5rem, 11vw, 3rem);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .home-hero__enter {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+
+    .hero-image-frame__image {
+      transition-duration: 0ms;
+    }
+
+    .home-hero__mobile-image {
+      animation: none;
+    }
+
+    .community-float {
+      animation: none;
+    }
+  }
 }

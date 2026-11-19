@@ -39,7 +39,7 @@ export default function FarmerLayout() {
               <Button variant="ghost" size="sm" onClick={handleLogout}><LogOut className="mr-1 h-4 w-4" /> Logout</Button>
             </div>
           </header>
-          <main className="flex-1 bg-background p-6">
+          <main className="flex-1 bg-background p-4 sm:p-6">
             <Outlet />
           </main>
         </div>

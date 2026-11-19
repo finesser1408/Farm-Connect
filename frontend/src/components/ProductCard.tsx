@@ -1,5 +1,5 @@
  // src/components/ProductCard.tsx
-import { ShoppingCart, MapPin } from "lucide-react";
+import { ShoppingCart, MapPin, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart-context";
 import { Link } from "react-router-dom";
@@ -48,8 +48,12 @@ export default function ProductCard({ product }: { product: Product }) {
         <span className="mb-1 text-xs font-medium uppercase tracking-wide text-primary">{product.category_details?.name}</span>
         <h3 className="font-display text-base text-foreground group-hover:text-primary">{product.name}</h3>
         <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-          <MapPin className="h-3 w-3" />
-          {product.farmer_name}
+          <MapPin className="h-3 w-3 shrink-0" />
+          <span>{product.farmer_location?.trim() || "Location not provided"}</span>
+        </div>
+        <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+          <UserRound className="h-3 w-3 shrink-0" />
+          <span>Farmer: {product.farmer_name?.trim() || "Farmer name unavailable"}</span>
         </div>
         <div className="mt-auto flex items-center justify-between pt-3">
           <span className="text-lg font-bold text-foreground">$ {parseFloat(product.price).toFixed(2)}</span>

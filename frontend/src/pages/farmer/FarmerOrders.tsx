@@ -47,15 +47,40 @@ export default function FarmerOrders() {
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       <h1 className="mb-6 font-display text-2xl text-foreground">Order Management</h1>
       {orders.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-12 text-center">
+        <div className="rounded-lg border border-dashed border-border p-8 text-center sm:p-12">
           <p className="text-muted-foreground">No orders yet. They will appear here when customers buy your products.</p>
         </div>
       ) : (
         <div className="rounded-lg border border-border bg-card">
-          <div className="overflow-x-auto">
+          {/* Mobile: stacked cards */}
+          <ul className="divide-y divide-border md:hidden">
+            {orders.map((o) => (
+              <li key={o.id} className="space-y-2 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground">{o.product.name}</p>
+                    <p className="text-xs text-muted-foreground">#{o.id} · Qty {o.quantity}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-medium text-foreground">${o.get_cost}</p>
+                    <p className="text-xs capitalize text-muted-foreground">{o.status}</p>
+                  </div>
+                </div>
+                {o.status === "pending" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" size="sm" className="text-primary" onClick={() => acceptOrder(o.id)}><CheckCircle className="mr-1 h-4 w-4" /> Accept</Button>
+                    <Button variant="outline" size="sm" className="text-destructive" onClick={() => rejectOrder(o.id)}><XCircle className="mr-1 h-4 w-4" /> Reject</Button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          {/* Tablet/desktop: table */}
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead><tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
                 <th className="px-6 py-3">ID</th><th className="px-6 py-3">Product</th><th className="px-6 py-3">Qty</th><th className="px-6 py-3">Total</th><th className="px-6 py-3 text-right">Actions</th>

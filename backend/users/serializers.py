@@ -97,13 +97,15 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'phone', 'farmer_profile', 'customer_profile']
+        fields = ['first_name', 'last_name', 'username', 'phone', 'farmer_profile', 'customer_profile']
 
     def update(self, instance, validated_data):
         farmer_profile_data = validated_data.pop('farmer_profile', None)
         customer_profile_data = validated_data.pop('customer_profile', None)
 
         # Update user fields
+        instance.first_name = validated_data.get('first_name', instance.first_name)
+        instance.last_name = validated_data.get('last_name', instance.last_name)
         instance.username = validated_data.get('username', instance.username)
         instance.phone = validated_data.get('phone', instance.phone)
         instance.save()

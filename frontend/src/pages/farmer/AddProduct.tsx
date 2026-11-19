@@ -105,9 +105,9 @@ export default function AddProduct() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto w-full min-w-0 max-w-2xl">
       <h1 className="mb-6 font-display text-2xl text-foreground">Add New Product</h1>
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-border bg-card p-6">
+      <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-border bg-card p-4 sm:p-6">
         <div><Label htmlFor="pname">Product Name</Label><Input id="pname" placeholder="Organic Tomatoes" value={form.name} onChange={set("name")} required /></div>
         <div>
           <Label htmlFor="category">Category</Label>
@@ -119,9 +119,9 @@ export default function AddProduct() {
           </select>
           {categoryError && <p className="mt-1 text-sm text-destructive" role="alert">{categoryError}</p>}
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div><Label htmlFor="price">Price ($)</Label><Input id="price" type="number" step="0.01" placeholder="3.50" value={form.price} onChange={set("price")} required /></div>
-          <div><Label htmlFor="qty">Quantity</Label><Input id="qty" type="number" placeholder="50" value={form.quantity} onChange={set("quantity")} required /></div>
+        <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2">
+          <div><Label htmlFor="price">Price ($)</Label><Input id="price" type="number" inputMode="decimal" step="0.01" min="0.01" placeholder="3.50" value={form.price} onChange={set("price")} required /></div>
+          <div><Label htmlFor="qty">Quantity</Label><Input id="qty" type="number" inputMode="numeric" min="0" step="1" placeholder="50" value={form.quantity} onChange={set("quantity")} required /></div>
         </div>
         <div>
           <Label htmlFor="desc">Description</Label>
@@ -129,15 +129,15 @@ export default function AddProduct() {
         </div>
         <div>
           <Label htmlFor="image">Product image (JPEG, PNG, or WebP; up to 5 MB)</Label>
-          <Input id="image" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={handleImageChange} />
+          <Input id="image" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={handleImageChange} className="h-auto py-2 file:mr-3" />
           {imageError && <p className="mt-1 text-sm text-destructive" role="alert">{imageError}</p>}
-          {imagePreview && <img src={imagePreview} alt="Product image preview" className="mt-3 h-40 w-40 rounded-md object-cover" />}
+          {imagePreview && <img src={imagePreview} alt="Product image preview" className="mt-3 h-40 w-40 max-w-full rounded-md object-cover" />}
         </div>
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={isSubmitting}>
+        <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row">
+          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
             {isSubmitting ? "Publishing..." : "Publish Product"}
           </Button>
-          <Button type="button" variant="outline" onClick={() => navigate("/farmer/products")} disabled={isSubmitting}>Cancel</Button>
+          <Button type="button" variant="outline" onClick={() => navigate("/farmer/products")} disabled={isSubmitting} className="w-full sm:w-auto">Cancel</Button>
         </div>
       </form>
     </div>

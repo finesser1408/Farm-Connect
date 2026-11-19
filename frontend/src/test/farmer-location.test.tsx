@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import RegisterPage from "@/pages/RegisterPage";
 import FarmerProfile from "@/pages/farmer/FarmerProfile";
 import ProductDetails from "@/pages/ProductDetails";
+import ProductCard from "@/components/ProductCard";
 import { useAuth } from "@/lib/auth-context";
 import { useCart } from "@/lib/cart-context";
 import { productService } from "@/lib/services/product-service";
@@ -90,7 +91,7 @@ describe("Farmer location support", () => {
     });
   });
 
-  it("allows farmers to view and update their location on FarmerProfile", async () => {
+  it("allows farmers to view and update their profile on FarmerProfile", async () => {
     const updateProfileMock = vi.fn().mockResolvedValue(undefined);
     vi.mocked(useAuth).mockReturnValue({
       user: {
@@ -116,20 +117,36 @@ describe("Farmer location support", () => {
       logout: vi.fn(),
     });
 
-    render(<FarmerProfile />);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <FarmerProfile />
+      </QueryClientProvider>
+    );
 
     const locationInput = screen.getByLabelText(/Location/i) as HTMLInputElement;
     expect(locationInput.value).toBe("Harare");
+    const farmNameInput = screen.getByLabelText(/Farm Name/i) as HTMLInputElement;
+    expect(farmNameInput.value).toBe("Green Valley");
 
     fireEvent.change(locationInput, { target: { value: "  Mutare  " } });
+    fireEvent.change(farmNameInput, { target: { value: "Sunny Meadows" } });
     fireEvent.submit(screen.getByRole("button", { name: /Save Changes/i }).closest("form")!);
 
     await waitFor(() => {
-      expect(updateProfileMock).toHaveBeenCalledWith({
-        farmer_profile: { location: "Mutare" },
-      });
+      expect(updateProfileMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          first_name: "Tariro",
+          last_name: "Moyo",
+          farmer_profile: {
+            farm_name: "Sunny Meadows",
+            location: "Mutare",
+            description: "Fresh produce",
+          },
+        })
+      );
     });
-    expect(await screen.findByText("Location updated.")).toBeInTheDocument();
+    expect(await screen.findByText("Profile updated successfully.")).toBeInTheDocument();
   });
 
   it("displays farmer location and farmer name on ProductDetails and keeps cart actions working", async () => {
@@ -224,6 +241,84 @@ describe("Farmer location support", () => {
     );
 
     expect(await screen.findByText("Location not provided")).toBeInTheDocument();
+    expect(screen.getByText("Farmer: Farmer name unavailable")).toBeInTheDocument();
+  });
+
+  it("displays farmer location and farmer name on ProductCard and preserves Add to Cart", () => {
+    const addItemMock = vi.fn();
+    vi.mocked(useCart).mockReturnValue({
+      items: [],
+      addItem: addItemMock,
+      removeItem: vi.fn(),
+      updateQuantity: vi.fn(),
+      clearCart: vi.fn(),
+      totalItems: 0,
+      totalPrice: 0,
+    } as ReturnType<typeof useCart>);
+
+    render(
+      <MemoryRouter>
+        <ProductCard
+          product={{
+            id: 20,
+            farmer_email: "farmer@example.com",
+            farmer_name: "Mr. Farmer",
+            farmer_location: "Harare",
+            category: 1,
+            category_details: { id: 1, name: "Vegetables", slug: "vegetables", description: "" },
+            name: "Madomasi",
+            slug: "madomasi",
+            description: "Fresh tomatoes",
+            price: "3.00",
+            stock: 8,
+            image: null,
+            is_available: true,
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+          }}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Harare")).toBeInTheDocument();
+    expect(screen.getByText("Farmer: Mr. Farmer")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Add/i }));
+    expect(addItemMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "20",
+        name: "Madomasi",
+        farmer: "Mr. Farmer",
+      })
+    );
+  });
+
+  it("displays fallback messages on ProductCard when farmer location and name are missing", () => {
+    render(
+      <MemoryRouter>
+        <ProductCard
+          product={{
+            id: 21,
+            farmer_email: "legacy@example.com",
+            farmer_name: "",
+            farmer_location: "",
+            category: null,
+            category_details: null,
+            name: "Organic Beans",
+            slug: "organic-beans",
+            description: "Fresh beans",
+            price: "4.00",
+            stock: 5,
+            image: null,
+            is_available: true,
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+          }}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("Location not provided")).toBeInTheDocument();
     expect(screen.getByText("Farmer: Farmer name unavailable")).toBeInTheDocument();
   });
 });

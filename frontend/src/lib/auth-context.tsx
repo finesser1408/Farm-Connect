@@ -32,6 +32,8 @@ export interface RegisterData {
 }
 
 export interface ProfileUpdateData {
+  first_name?: string;
+  last_name?: string;
   farmer_profile?: Partial<NonNullable<User["farmer_profile"]>>;
   customer_profile?: Partial<NonNullable<User["customer_profile"]>>;
   phone?: string;

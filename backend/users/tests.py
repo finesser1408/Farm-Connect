@@ -113,6 +113,8 @@ class UserProfileAPITests(APITestCase):
     def test_update_farmer_profile(self):
         url = reverse('users:update-profile')
         data = {
+            'first_name': 'Updated',
+            'last_name': 'Farmer',
             'username': 'new_farmer_name',
             'farmer_profile': {
                 'farm_name': 'Sunny Farm',
@@ -122,10 +124,15 @@ class UserProfileAPITests(APITestCase):
         }
         response = self.client.patch(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['user']['first_name'], 'Updated')
+        self.assertEqual(response.data['user']['last_name'], 'Farmer')
         self.assertEqual(response.data['user']['username'], 'new_farmer_name')
         self.assertEqual(response.data['user']['farmer_profile']['farm_name'], 'Sunny Farm')
         
         # Verify in DB
+        self.farmer_user.refresh_from_db()
+        self.assertEqual(self.farmer_user.first_name, 'Updated')
+        self.assertEqual(self.farmer_user.last_name, 'Farmer')
         profile = FarmerProfile.objects.get(user=self.farmer_user)
         self.assertEqual(profile.farm_name, 'Sunny Farm')
         self.assertEqual(profile.location, 'Nakuru')

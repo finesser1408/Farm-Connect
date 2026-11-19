@@ -1,0 +1,78 @@
+services:
+  dev-database:
+    image: postgres:16-alpine
+    container_name: farmconnect-dev-db
+    env_file:
+      - ./backend/.env.development
+    environment:
+      POSTGRES_DB: ${DEV_POSTGRES_DB:?Set DEV_POSTGRES_DB in backend/.env.development}
+      POSTGRES_USER: ${DEV_POSTGRES_USER:?Set DEV_POSTGRES_USER in backend/.env.development}
+      POSTGRES_PASSWORD: ${DEV_POSTGRES_PASSWORD:?Set DEV_POSTGRES_PASSWORD in backend/.env.development}
+    volumes:
+      - farmconnect_dev_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - farmconnect-dev
+
+  dev-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: farmconnect-dev-backend
+    env_file:
+      - ./backend/.env.development
+    environment:
+      DB_HOST: dev-database
+      DB_PORT: 5432
+      DB_NAME: ${DEV_POSTGRES_DB:?Set DEV_POSTGRES_DB in backend/.env.development}
+      DB_USER: ${DEV_POSTGRES_USER:?Set DEV_POSTGRES_USER in backend/.env.development}
+      DB_PASSWORD: ${DEV_POSTGRES_PASSWORD:?Set DEV_POSTGRES_PASSWORD in backend/.env.development}
+    volumes:
+      - farmconnect_dev_media:/app/media
+    depends_on:
+      dev-database:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18000:8000"
+    networks:
+      - farmconnect-dev
+
+  dev-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+    container_name: farmconnect-dev-frontend
+    volumes:
+      - farmconnect_dev_media:/usr/share/nginx/html/media:ro
+    depends_on:
+      - dev-backend
+    networks:
+      - farmconnect-dev
+
+  dev-gateway:
+    image: nginx:alpine
+    container_name: farmconnect-dev-gateway
+    volumes:
+      - ./nginx-dev.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - dev-frontend
+      - dev-backend
+    ports:
+      - "127.0.0.1:18080:80"
+    networks:
+      - farmconnect-dev
+
+volumes:
+  farmconnect_dev_postgres_data:
+  farmconnect_dev_media:
+
+networks:
+  farmconnect-dev:
+    name: farmconnect-dev-network
+    driver: bridge

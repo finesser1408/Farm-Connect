@@ -17,3 +17,4 @@ venv/
 source/
 .env
 .env.example
+.env.development

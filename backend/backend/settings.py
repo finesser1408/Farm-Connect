@@ -246,8 +246,11 @@ SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'True').lower() == 'true'
 
 # Resend Configuration
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
-# Prouction Security settings
-SECURE_SSL_REDIRECT = False  # Set to True in production
+# Production Security settings
+SECURE_SSL_REDIRECT = os.environ.get(
+    'SECURE_SSL_REDIRECT',
+    'False' if DEBUG else 'True',
+).lower() in ('true', '1', 't')
 
 SESSION_COOKIE_SECURE = True
 

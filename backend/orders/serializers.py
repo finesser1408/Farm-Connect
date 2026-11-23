@@ -6,6 +6,7 @@ from rest_framework import serializers
 from payments.models import Payment
 from products.models import Product
 from products.serializers import ProductSerializer
+from users.permissions import is_product_publicly_visible
 from .models import Cart, CartItem, Order, OrderItem
 
 # --- READ SERIALIZERS (Your original logic) ---
@@ -139,6 +140,10 @@ class CreateOrderSerializer(serializers.Serializer):
         locked_products = []
         for item in cart_items:
             product = Product.objects.select_for_update().get(pk=item.product_id)
+            if not is_product_publicly_visible(product):
+                raise serializers.ValidationError({
+                    'cart': f'{product.name} is no longer available for purchase.'
+                })
             if not product.is_available or item.quantity > product.stock:
                 raise serializers.ValidationError({
                     'cart': f'{product.name} is no longer available in the requested quantity.'

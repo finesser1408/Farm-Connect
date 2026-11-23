@@ -30,11 +30,22 @@ env/
 venv
 source/
 backend/source/
+# Environment variables and secrets
 .env
 .env/
+.env.*
+!.env.example
+!.env.*.example
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Database backups and dumps
+backups/
+*.dump
+*.sql
+*.sql.gz
+*.bak
 
 # Media
 media/

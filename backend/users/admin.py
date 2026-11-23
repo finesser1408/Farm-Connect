@@ -1,7 +1,9 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
-from .models import User, FarmerProfile, CustomerProfile
+from backend.admin_mixins import NoHardDeleteAdminMixin
+from .models import User, FarmerProfile, CustomerProfile, AdminAuditLog
+from .tokens import revoke_user_refresh_tokens
 
 
 # ──────────────────────────────────────────────
@@ -13,7 +15,7 @@ class FarmerProfileInline(admin.StackedInline):
     can_delete = False
     verbose_name_plural = 'Farmer Profile'
     fk_name = 'user'
-    fields = ('farm_name', 'location', 'bio')
+    fields = ('farm_name', 'location', 'description', 'status')
     extra = 0
 
 
@@ -31,7 +33,7 @@ class CustomerProfileInline(admin.StackedInline):
 # ──────────────────────────────────────────────
 
 @admin.register(User)
-class CustomUserAdmin(UserAdmin):
+class CustomUserAdmin(NoHardDeleteAdminMixin, UserAdmin):
     # List view
     list_display = (
         'email', 'username', 'user_type_badge', 'is_verified',
@@ -106,7 +108,7 @@ class CustomUserAdmin(UserAdmin):
 
     # ── Bulk actions ──────────────────────────
 
-    actions = ['verify_users', 'unverify_users', 'make_farmer', 'make_customer']
+    actions = ['verify_users', 'unverify_users', 'deactivate_users', 'activate_users']
 
     @admin.action(description='✔ Mark selected users as verified')
     def verify_users(self, request, queryset):
@@ -118,15 +120,44 @@ class CustomUserAdmin(UserAdmin):
         updated = queryset.update(is_verified=False)
         self.message_user(request, f'{updated} user(s) unverified.')
 
-    @admin.action(description='🌾 Set selected users as Farmer')
-    def make_farmer(self, request, queryset):
-        updated = queryset.update(user_type='farmer')
-        self.message_user(request, f'{updated} user(s) changed to farmer.')
+    @admin.action(description='⛔ Deactivate selected non-Super-Admin accounts')
+    def deactivate_users(self, request, queryset):
+        deactivated = 0
+        for target in queryset:
+            if target.pk == request.user.pk or target.is_superuser:
+                continue
+            if target.is_active:
+                target.is_active = False
+                target.save(update_fields=['is_active', 'updated_at'])
+                revoked = revoke_user_refresh_tokens(target)
+                AdminAuditLog.log(
+                    actor=request.user,
+                    action='suspend_user',
+                    target_type='user',
+                    target_id=target.pk,
+                    target_repr=target.email,
+                    details={'source': 'django_admin', 'revoked_refresh_tokens': revoked},
+                )
+                deactivated += 1
+        self.message_user(request, f'{deactivated} user account(s) deactivated (self and Super Admins skipped).')
 
-    @admin.action(description='🛒 Set selected users as Customer')
-    def make_customer(self, request, queryset):
-        updated = queryset.update(user_type='customer')
-        self.message_user(request, f'{updated} user(s) changed to customer.')
+    @admin.action(description='✅ Activate selected user accounts')
+    def activate_users(self, request, queryset):
+        activated = 0
+        for target in queryset:
+            if not target.is_active:
+                target.is_active = True
+                target.save(update_fields=['is_active', 'updated_at'])
+                AdminAuditLog.log(
+                    actor=request.user,
+                    action='reactivate_user',
+                    target_type='user',
+                    target_id=target.pk,
+                    target_repr=target.email,
+                    details={'source': 'django_admin'},
+                )
+                activated += 1
+        self.message_user(request, f'{activated} user account(s) activated.')
 
 
 # ──────────────────────────────────────────────
@@ -134,15 +165,18 @@ class CustomUserAdmin(UserAdmin):
 # ──────────────────────────────────────────────
 
 @admin.register(FarmerProfile)
-class FarmerProfileAdmin(admin.ModelAdmin):
-    list_display  = ('farm_name', 'user', 'location', 'created_at')
+class FarmerProfileAdmin(NoHardDeleteAdminMixin, admin.ModelAdmin):
+    list_display  = ('farm_name', 'user', 'location', 'status', 'created_at')
     search_fields = ('farm_name', 'user__email', 'location')
-    list_filter   = ('location',)
+    list_filter   = ('status', 'location')
     ordering      = ('farm_name',)
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'status_updated_at', 'status_updated_by')
     fieldsets = (
         ('Farm Details', {
-            'fields': ('user', 'farm_name', 'location', 'bio'),
+            'fields': ('user', 'farm_name', 'location', 'description'),
+        }),
+        ('Moderation Status', {
+            'fields': ('status', 'status_reason', 'status_updated_by', 'status_updated_at'),
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
@@ -167,3 +201,21 @@ class CustomerProfileAdmin(admin.ModelAdmin):
             'classes': ('collapse',),
         }),
     )
+
+
+@admin.register(AdminAuditLog)
+class AdminAuditLogAdmin(admin.ModelAdmin):
+    list_display = ('id', 'created_at', 'actor_email', 'action', 'target_type', 'target_id', 'target_repr')
+    list_filter = ('action', 'target_type', 'created_at')
+    search_fields = ('actor_email', 'action', 'target_repr', 'target_id')
+    ordering = ('-created_at',)
+    readonly_fields = ('actor', 'actor_email', 'action', 'target_type', 'target_id', 'target_repr', 'details', 'created_at')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

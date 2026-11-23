@@ -16,7 +16,8 @@
 | :--- | :--- | :--- | :--- |
 | **Customer** | `customer` | Shoppers browsing produce, managing carts, placing orders, and tracking order status | Public browsing; authenticated cart (`/api/v1/cart/`), checkout (`/checkout`), customer dashboard (`/customer`), order tracking (`/customer/orders/:orderId`), and profile updates |
 | **Farmer** | `farmer` | Agricultural producers listing products, managing stock, processing order items, and updating farm details | Authenticated farmer dashboard (`/farmer`), product creation/deletion, order item accept/reject, and own profile editing (`/farmer/profile`) |
-| **Admin** | `admin` (or `is_staff=True`) | Platform moderators overseeing users, farmers, products, and orders | Admin routes (`/admin/*`), user management (`/api/v1/auth/admin/users/`), order status updates, and viewing unavailable products (`?available=all`) |
+| **Super Admin** | `admin` (`is_superuser=True`) | Highest-privilege platform administrator | All General Admin permissions plus assigning/revoking General Admin roles, suspending/reactivating General Admins, deleting non-Super-Admin accounts, and viewing `AdminAuditLog` |
+| **General Admin** | `admin` / `is_staff=True` (`is_superuser=False`) | Platform moderators overseeing users, farmers, products, and orders | Admin routes (`/admin/*`), read registered user list, register/approve/suspend/reactivate farmers (`/admin/farmers`), order status updates, product moderation (`?available=all`) |
 | **Guest (Unauthenticated)** | — | Visitors exploring the platform | Can view Homepage (`/`), Marketplace (`/marketplace`), Product Details (`/product/:id`), About (`/about`), Login (`/login`), Register (`/register`), Password Reset (`/password-reset`), and Guest Cart (`/cart`); redirected to `/login` when accessing `/checkout` |
 
 ---
@@ -36,8 +37,15 @@
 4. **Farmer Dashboard & Mobile Experience** ([FarmerLayout.tsx](../../frontend/src/layouts/FarmerLayout.tsx)):
    - Collapsible mobile navigation drawer that auto-closes on selection, with accessible Logout and scroll-to-top.
    - Responsive summary dashboard ([FarmerDashboard.tsx](../../frontend/src/pages/farmer/FarmerDashboard.tsx)), product listing & deletion ([FarmerProducts.tsx](../../frontend/src/pages/farmer/FarmerProducts.tsx)), product creation with JPEG/PNG/WebP validation ([AddProduct.tsx](../../frontend/src/pages/farmer/AddProduct.tsx)), order item accept/reject ([FarmerOrders.tsx](../../frontend/src/pages/farmer/FarmerOrders.tsx)), analytics shell ([FarmerAnalytics.tsx](../../frontend/src/pages/farmer/FarmerAnalytics.tsx)), and synchronized profile editing ([FarmerProfile.tsx](../../frontend/src/pages/farmer/FarmerProfile.tsx)).
+   - **Farmer Approval & Lifecycle Workflow** ([AdminFarmers.tsx](../../frontend/src/pages/admin/AdminFarmers.tsx), [backend/users/models.py](../../backend/users/models.py)): Farmers hold an explicit `FarmerProfile.status` (`pending`, `approved`, `suspended`) independent of login activation (`User.is_active`). Existing farmers remained `approved`; new farmers start `pending`; suspended/pending farmers cannot create or edit products and their listings cannot be viewed publicly, added to cart, or purchased at checkout, while historical orders are preserved.
+   - **Farmer Product Moderation & Admin Catalog Management** ([AdminProductManagementPanel.tsx](../../frontend/src/components/admin/AdminProductManagementPanel.tsx), [AdminProducts.tsx](../../frontend/src/pages/admin/AdminProducts.tsx), [backend/products/models.py](../../backend/products/models.py)): Authorized admins can view a specific farmer's products from Farmer Management (`View Products`) or moderate all listings centrally on `/admin/products` with search, farmer, category, and `moderation_status` (`active`, `hidden`, `removed`) filters. Admins can add products for approved farmers, edit product details/images, hide (`active` -> `hidden`), restore (`hidden` -> `active`), and safely soft-remove (`-> removed`) listings without breaking historical orders or product reviews.
 5. **Cart & Checkout**:
    - Guest-to-authenticated cart restoration, server-persisted cart items, checkout with `ecocash` / `onemoney` / `cod` options, and order tracking.
+   - **Database-Backed Customer Review System**:
+     - Platform testimonials on Homepage ([Index.tsx](../../frontend/src/pages/Index.tsx)) dynamically fetched from `/api/v1/reviews/testimonials/`, featuring accurate 1–5 star ratings, customer-approved display names, and empty state with feedback submission modal ([TestimonialSubmissionModal.tsx](../../frontend/src/components/TestimonialSubmissionModal.tsx)).
+     - Product-specific reviews and aggregate rating metrics on Product Details ([ProductDetails.tsx](../../frontend/src/pages/ProductDetails.tsx)) fetched from `/api/v1/reviews/products/<slug>/` with modal submission ([ProductReviewSubmissionModal.tsx](../../frontend/src/components/ProductReviewSubmissionModal.tsx)).
+     - Anti-abuse controls: Customer-only submission, explicit public consent requirement, duplicate prevention at DB level, update capability for pending reviews, and administrative moderation workflow.
+     - Verified purchase labeling kept disabled pending independently verifiable real payment gateway integration.
 
 ---
 
@@ -45,8 +53,7 @@
 
 - **Farmer Analytics live data**: [FarmerAnalytics.tsx](../../frontend/src/pages/farmer/FarmerAnalytics.tsx) currently renders empty-state placeholders (`salesData = []`, `topProducts = []`); no dedicated analytics aggregation endpoint is wired yet.
 - **Product editing UI for farmers**: Farmers can create and delete products (`POST /api/v1/products/`, `DELETE /api/v1/products/<slug>/`), and the backend supports `PUT`/`PATCH`, but no dedicated Edit Product UI page is currently routed in [App.tsx](../../frontend/src/App.tsx).
-- **Product reviews**: [ProductDetails.tsx](../../frontend/src/pages/ProductDetails.tsx) displays a static rating (`4.5`, `24 reviews`) and `"Reviews coming soon."` tab.
-- **Automated payment gateway integration**: `Payment` model exists in [backend/payments/models.py](../../backend/payments/models.py), while `ecocash`/`onemoney`/`cod` checkout integration status is **Not yet verified** beyond order creation.
+- **Automated payment gateway integration**: `Payment` model exists in [backend/payments/models.py](../../backend/payments/models.py), while `ecocash`/`onemoney`/`cod` checkout integration status is **Not yet verified** beyond order creation (payments currently use simulated transaction tokens).
 - **Production HTTPS readiness**: `SECURE_SSL_REDIRECT` is currently `False` in [settings.py](../../backend/backend/settings.py#L250) (TLS termination is handled upstream; see [PRODUCT_DEVELOPMENT.md](../02-product-development/PRODUCT_DEVELOPMENT.md)).
 
 ---
@@ -74,7 +81,7 @@
 | P1 | Enable production HTTPS (`SECURE_SSL_REDIRECT` / CloudPanel SSL verification) | Open — requires infrastructure confirmation |
 | P2 | Connect `FarmerAnalytics` to real order-item aggregation API | Backlog |
 | P2 | Add Farmer Edit Product page (`PATCH /api/v1/products/<slug>/`) | Backlog |
-| P3 | Replace static product review placeholder with real customer review model | Backlog |
+| P3 | Database-backed review system (Platform testimonials + Product reviews + Admin moderation) | Implemented in dev environment (`53/53` backend & `42/42` frontend tests pass) |
 
 *(No stakeholder approvals or unverified requirements are assumed.)*
 

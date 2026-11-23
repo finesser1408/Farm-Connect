@@ -32,6 +32,7 @@ class ProductAPITestCase(APITestCase):
             user=self.user,
             farm_name='Green Fields',
             location='Nairobi',
+            status='approved',
         )
         self.category, _ = Category.objects.get_or_create(
             slug='fruits',
@@ -78,6 +79,7 @@ class ProductAPITestCase(APITestCase):
             user=self.other_user,
             farm_name='Kigali Greens',
             location='Kigali',
+            status='approved',
         )
         Product.objects.create(
             farmer=self.other_user,
@@ -112,6 +114,7 @@ class ProductAPITestCase(APITestCase):
 
     def test_product_detail_without_farmer_profile_returns_empty_location(self):
         FarmerProfile.objects.get(user=self.user).delete()
+        self.client.force_authenticate(user=self.user)
 
         response = self.client.get(reverse('product-detail', args=['organic-apple']))
 
@@ -318,3 +321,436 @@ class ProductAPITestCase(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('5 MB or smaller', str(response.data['image']))
+
+
+class AdminProductModerationTests(APITestCase):
+    def setUp(self):
+        User = get_user_model()
+        from orders.models import Order, OrderItem
+        from reviews.models import ProductReview
+        self.Order = Order
+        self.OrderItem = OrderItem
+        self.ProductReview = ProductReview
+
+        self.super_admin = User.objects.create_superuser(
+            username='superadmin',
+            email='superadmin@example.com',
+            password='password123',
+            first_name='Super',
+            last_name='Admin',
+        )
+        self.general_admin = User.objects.create_user(
+            username='generaladmin',
+            email='generaladmin@example.com',
+            password='password123',
+            first_name='General',
+            last_name='Admin',
+            user_type='admin',
+            is_staff=True,
+        )
+        self.customer = User.objects.create_user(
+            username='buyer',
+            email='buyer@example.com',
+            password='password123',
+            first_name='Tariro',
+            last_name='Buyer',
+            user_type='customer',
+        )
+        self.approved_farmer = User.objects.create_user(
+            username='approvedfarmer',
+            email='approvedfarmer@example.com',
+            password='password123',
+            first_name='Chipo',
+            last_name='Moyo',
+            user_type='farmer',
+        )
+        FarmerProfile.objects.create(
+            user=self.approved_farmer,
+            farm_name='Moyo Greens',
+            location='Harare',
+            status='approved',
+        )
+        self.other_farmer = User.objects.create_user(
+            username='otherfarmer',
+            email='otherfarmer@example.com',
+            password='password123',
+            first_name='Rudo',
+            last_name='Ndlovu',
+            user_type='farmer',
+        )
+        FarmerProfile.objects.create(
+            user=self.other_farmer,
+            farm_name='Ndlovu Harvest',
+            location='Bulawayo',
+            status='approved',
+        )
+        self.suspended_farmer = User.objects.create_user(
+            username='suspendedfarmer',
+            email='suspendedfarmer@example.com',
+            password='password123',
+            first_name='Tendai',
+            last_name='Dube',
+            user_type='farmer',
+        )
+        FarmerProfile.objects.create(
+            user=self.suspended_farmer,
+            farm_name='Paused Plot',
+            location='Mutare',
+            status='suspended',
+        )
+        self.pending_farmer = User.objects.create_user(
+            username='pendingfarmer',
+            email='pendingfarmer@example.com',
+            password='password123',
+            first_name='Nyasha',
+            last_name='Shumba',
+            user_type='farmer',
+        )
+        FarmerProfile.objects.create(
+            user=self.pending_farmer,
+            farm_name='New Soil Farm',
+            location='Gweru',
+            status='pending',
+        )
+
+        self.vegetables, _ = Category.objects.get_or_create(
+            slug='vegetables',
+            defaults={'name': 'Vegetables'},
+        )
+        self.fruits, _ = Category.objects.get_or_create(
+            slug='fruits',
+            defaults={'name': 'Fruits'},
+        )
+        self.product = Product.objects.create(
+            farmer=self.approved_farmer,
+            category=self.vegetables,
+            name='Fresh Spinach',
+            slug='fresh-spinach',
+            description='Organic leafy spinach',
+            price='3.00',
+            stock=12,
+        )
+        self.other_product = Product.objects.create(
+            farmer=self.other_farmer,
+            category=self.fruits,
+            name='Sweet Mangoes',
+            slug='sweet-mangoes',
+            description='Ripe mangoes',
+            price='4.50',
+            stock=15,
+        )
+        self.suspended_product = Product.objects.create(
+            farmer=self.suspended_farmer,
+            category=self.vegetables,
+            name='Suspended Squash',
+            slug='suspended-squash',
+            description='Butternut squash',
+            price='2.50',
+            stock=5,
+        )
+
+    def test_super_and_general_admin_can_list_specific_farmer_products(self):
+        url = reverse('product-list-create')
+        for admin in (self.super_admin, self.general_admin):
+            with self.subTest(admin=admin.email):
+                self.client.force_authenticate(user=admin)
+                response = self.client.get(
+                    url,
+                    {
+                        'farmer_id': self.approved_farmer.id,
+                        'available': 'all',
+                        'moderation_status': 'all',
+                    },
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data['count'], 1)
+                self.assertEqual(response.data['results'][0]['slug'], 'fresh-spinach')
+                self.assertEqual(response.data['results'][0]['farmer_id'], self.approved_farmer.id)
+
+    def test_non_admin_cannot_access_admin_moderation_or_filter_hidden_products(self):
+        for actor in (None, self.customer, self.approved_farmer):
+            with self.subTest(actor=getattr(actor, 'email', 'anon')):
+                if actor:
+                    self.client.force_authenticate(user=actor)
+                else:
+                    self.client.force_authenticate(user=None)
+                res_hidden = self.client.get(reverse('product-list-create'), {'moderation_status': 'hidden'})
+                self.assertEqual(res_hidden.status_code, status.HTTP_403_FORBIDDEN)
+                res_hide = self.client.patch(reverse('product-hide', args=[self.product.slug]))
+                self.assertIn(res_hide.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+                res_restore = self.client.patch(reverse('product-restore', args=[self.product.slug]))
+                self.assertIn(res_restore.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+                res_remove = self.client.patch(reverse('product-remove', args=[self.product.slug]))
+                self.assertIn(res_remove.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+
+    def test_admin_can_create_product_for_approved_farmer_and_blocks_non_approved(self):
+        from users.models import AdminAuditLog
+        url = reverse('product-list-create')
+
+        for admin in (self.super_admin, self.general_admin):
+            self.client.force_authenticate(user=admin)
+            res = self.client.post(
+                url,
+                {
+                    'farmer_id': self.approved_farmer.id,
+                    'name': f'Admin Onions {admin.username}',
+                    'description': 'Red onions',
+                    'price': '2.25',
+                    'stock': 20,
+                    'category': self.vegetables.id,
+                },
+                format='json',
+            )
+            self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.data)
+            self.assertEqual(res.data['farmer_id'], self.approved_farmer.id)
+            self.assertEqual(res.data['moderation_status'], 'active')
+            self.assertTrue(
+                AdminAuditLog.objects.filter(
+                    actor=admin,
+                    action='admin_create_product',
+                    target_id=res.data['id'],
+                ).exists()
+            )
+
+        # Reject missing, pending, suspended, and non-farmer target IDs
+        for bad_id in ('', self.pending_farmer.id, self.suspended_farmer.id, self.customer.id):
+            bad_res = self.client.post(
+                url,
+                {
+                    'farmer_id': bad_id,
+                    'name': 'Blocked Admin Item',
+                    'description': 'Should fail',
+                    'price': '2.00',
+                    'stock': 5,
+                    'category': self.vegetables.id,
+                },
+                format='json',
+            )
+            self.assertEqual(bad_res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_admin_can_edit_product_and_replace_image_without_touching_others(self):
+        from users.models import AdminAuditLog
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            initial_img = SimpleUploadedFile('initial.jpg', make_test_image('JPEG'), content_type='image/jpeg')
+            other_img = SimpleUploadedFile('other.png', make_test_image('PNG'), content_type='image/png')
+            self.other_product.image = other_img
+            self.other_product.save()
+            self.product.image = initial_img
+            self.product.save()
+
+            self.client.force_authenticate(user=self.general_admin)
+            replacement_img = SimpleUploadedFile('updated.webp', make_test_image('WEBP'), content_type='image/webp')
+            res = self.client.patch(
+                reverse('product-detail', args=[self.product.slug]),
+                {
+                    'name': 'Organic Spinach Bundle',
+                    'price': '3.75',
+                    'stock': 18,
+                    'image': replacement_img,
+                },
+                format='multipart',
+            )
+            self.assertEqual(res.status_code, status.HTTP_200_OK, res.data)
+            self.product.refresh_from_db()
+            self.other_product.refresh_from_db()
+            self.assertEqual(self.product.name, 'Organic Spinach Bundle')
+            self.assertEqual(str(self.product.price), '3.75')
+            self.assertEqual(self.product.stock, 18)
+            self.assertIn('updated', self.product.image.name)
+            self.assertTrue(self.other_product.image.storage.exists(self.other_product.image.name))
+            self.assertTrue(
+                AdminAuditLog.objects.filter(
+                    actor=self.general_admin,
+                    action='admin_update_product',
+                    target_id=self.product.id,
+                ).exists()
+            )
+
+    def test_hide_and_restore_enforce_public_visibility_cart_and_checkout(self):
+        from orders.models import Cart, CartItem
+        from users.models import AdminAuditLog
+
+        # Customer adds product to cart before hiding
+        cart, _ = Cart.objects.get_or_create(customer=self.customer)
+        CartItem.objects.create(cart=cart, product=self.product, quantity=2, price=self.product.price)
+
+        # Admin hides product
+        self.client.force_authenticate(user=self.general_admin)
+        hide_res = self.client.patch(
+            reverse('product-hide', args=[self.product.slug]),
+            {'reason': 'Seasonal stock check'},
+            format='json',
+        )
+        self.assertEqual(hide_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(hide_res.data['moderation_status'], 'hidden')
+        self.assertEqual(hide_res.data['moderation_reason'], 'Seasonal stock check')
+        self.assertTrue(
+            AdminAuditLog.objects.filter(actor=self.general_admin, action='hide_product', target_id=self.product.id).exists()
+        )
+
+        # Public listing, search, category filter, and direct detail reject/exclude hidden product
+        self.client.force_authenticate(user=None)
+        list_res = self.client.get(reverse('product-list-create'), {'search': 'Spinach', 'category': 'vegetables'})
+        self.assertEqual(list_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(list_res.data['count'], 0)
+        detail_res = self.client.get(reverse('product-detail', args=[self.product.slug]))
+        self.assertEqual(detail_res.status_code, status.HTTP_404_NOT_FOUND)
+
+        # Cart add/update and checkout block hidden product
+        self.client.force_authenticate(user=self.customer)
+        add_res = self.client.post('/api/v1/cart/add/', {'product_id': self.product.id, 'quantity': 1}, format='json')
+        self.assertEqual(add_res.status_code, status.HTTP_400_BAD_REQUEST)
+        update_res = self.client.patch(f'/api/v1/cart/items/{self.product.id}/', {'quantity': 1}, format='json')
+        self.assertEqual(update_res.status_code, status.HTTP_400_BAD_REQUEST)
+        checkout_res = self.client.post(
+            reverse('create-order'),
+            {
+                'first_name': 'Tariro',
+                'last_name': 'Buyer',
+                'email': self.customer.email,
+                'phone': '+263771234567',
+                'address': '10 First Street',
+                'postal_code': '00263',
+                'city': 'Harare',
+                'payment_method': 'cod',
+            },
+            format='json',
+        )
+        self.assertEqual(checkout_res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Admin restores hidden product -> returns to public visibility and preserves stock
+        self.client.force_authenticate(user=self.super_admin)
+        restore_res = self.client.patch(
+            reverse('product-restore', args=[self.product.slug]),
+            {'reason': 'Verified back in stock'},
+            format='json',
+        )
+        self.assertEqual(restore_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(restore_res.data['moderation_status'], 'active')
+        self.assertEqual(restore_res.data['stock'], 12)
+        self.assertTrue(
+            AdminAuditLog.objects.filter(actor=self.super_admin, action='restore_product', target_id=self.product.id).exists()
+        )
+
+        self.client.force_authenticate(user=None)
+        public_after = self.client.get(reverse('product-detail', args=[self.product.slug]))
+        self.assertEqual(public_after.status_code, status.HTTP_200_OK)
+
+        # Restoring a product of a suspended farmer still does NOT make it public
+        self.client.force_authenticate(user=self.super_admin)
+        self.client.patch(reverse('product-hide', args=[self.suspended_product.slug]))
+        self.client.patch(reverse('product-restore', args=[self.suspended_product.slug]))
+        self.client.force_authenticate(user=None)
+        self.assertEqual(
+            self.client.get(reverse('product-detail', args=[self.suspended_product.slug])).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_soft_remove_preserves_orders_and_reviews_and_blocks_restore(self):
+        from users.models import AdminAuditLog
+
+        order = self.Order.objects.create(
+            customer=self.customer,
+            first_name='Tariro',
+            last_name='Buyer',
+            email=self.customer.email,
+            phone='+263771234567',
+            address='10 First Street',
+            postal_code='00263',
+            city='Harare',
+            total_amount='11.00',
+            status='delivered',
+        )
+        order_item = self.OrderItem.objects.create(
+            order=order,
+            product=self.product,
+            price=self.product.price,
+            quantity=2,
+        )
+        review = self.ProductReview.objects.create(
+            product=self.product,
+            customer=self.customer,
+            rating=5,
+            title='Crisp leaves',
+            comment='Really fresh spinach',
+            status='approved',
+        )
+
+        self.client.force_authenticate(user=self.general_admin)
+        remove_res = self.client.patch(
+            reverse('product-remove', args=[self.product.slug]),
+            {'reason': 'Discontinued product line'},
+            format='json',
+        )
+        self.assertEqual(remove_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(remove_res.data['moderation_status'], 'removed')
+        self.assertTrue(
+            AdminAuditLog.objects.filter(actor=self.general_admin, action='remove_product', target_id=self.product.id).exists()
+        )
+
+        # Database rows remain intact
+        self.assertTrue(Product.objects.filter(pk=self.product.id).exists())
+        self.assertTrue(self.OrderItem.objects.filter(pk=order_item.id).exists())
+        self.assertTrue(self.ProductReview.objects.filter(pk=review.id).exists())
+
+        # Restoring or editing removed product is rejected
+        self.assertEqual(
+            self.client.patch(reverse('product-restore', args=[self.product.slug])).status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(
+            self.client.patch(reverse('product-detail', args=[self.product.slug]), {'name': 'Hacked'}, format='json').status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        # Customer historical orders & reviews continue working
+        self.client.force_authenticate(user=self.customer)
+        order_res = self.client.get(reverse('order-detail', args=[order.id]))
+        self.assertEqual(order_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(order_res.data['items'][0]['product']['name'], 'Fresh Spinach')
+        review_res = self.client.get(f'/api/v1/reviews/products/{self.product.slug}/')
+        self.assertEqual(review_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(review_res.data['total_reviews'], 1)
+
+        # Farmer own view excludes removed products
+        self.client.force_authenticate(user=self.approved_farmer)
+        farmer_res = self.client.get(reverse('product-list-create'), {'farmer': 'me'})
+        self.assertEqual(farmer_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(farmer_res.data['count'], 0)
+
+    def test_farmer_cannot_self_restore_hidden_product_or_spoof_farmer_id(self):
+        self.product.moderation_status = 'hidden'
+        self.product.save(update_fields=['moderation_status'])
+
+        self.client.force_authenticate(user=self.approved_farmer)
+        patch_res = self.client.patch(
+            reverse('product-detail', args=[self.product.slug]),
+            {'moderation_status': 'active', 'name': 'Updated Name'},
+            format='json',
+        )
+        self.assertEqual(patch_res.status_code, status.HTTP_200_OK)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.moderation_status, 'hidden')
+
+        # Farmer creating product with spoofed farmer_id ignores spoof and binds to self
+        create_res = self.client.post(
+            reverse('product-list-create'),
+            {
+                'farmer_id': self.other_farmer.id,
+                'name': 'Farmer Owned Beans',
+                'description': 'Fresh green beans',
+                'price': '3.20',
+                'stock': 10,
+                'category': self.vegetables.id,
+            },
+            format='json',
+        )
+        self.assertEqual(create_res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(create_res.data['farmer_id'], self.approved_farmer.id)
+
+    def test_delete_endpoint_soft_removes_instead_of_hard_deleting(self):
+        self.client.force_authenticate(user=self.super_admin)
+        del_res = self.client.delete(reverse('product-detail', args=[self.other_product.slug]))
+        self.assertEqual(del_res.status_code, status.HTTP_200_OK)
+        self.other_product.refresh_from_db()
+        self.assertEqual(self.other_product.moderation_status, 'removed')

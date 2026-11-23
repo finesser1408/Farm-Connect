@@ -1,23 +1,38 @@
 import { useParams, Link } from "react-router-dom";
-import { ShoppingCart, MapPin, UserRound, Star, ArrowLeft, Plus, Minus } from "lucide-react";
+import { ShoppingCart, MapPin, UserRound, Star, ArrowLeft, Plus, Minus, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-context";
+import { useAuth } from "@/lib/auth-context";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProductCard from "@/components/ProductCard";
+import ProductReviewSubmissionModal from "@/components/ProductReviewSubmissionModal";
 import { useQuery } from "@tanstack/react-query";
 import { productService } from "@/lib/services/product-service";
+import { reviewService } from "@/lib/services/review-service";
 
 export default function ProductDetails() {
   const { id: slug } = useParams();
   const { addItem } = useCart();
+  const { user } = useAuth();
   const [qty, setQty] = useState(1);
   const [activeTab, setActiveTab] = useState<"description" | "reviews">("description");
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   const { data: product, isLoading } = useQuery({
     queryKey: ["product", slug],
     queryFn: () => productService.getProductBySlug(slug!),
+    enabled: !!slug,
+  });
+
+  const {
+    data: reviewsData,
+    isLoading: isReviewsLoading,
+    refetch: refetchReviews,
+  } = useQuery({
+    queryKey: ["product-reviews", slug],
+    queryFn: () => reviewService.getProductReviews(slug!),
     enabled: !!slug,
   });
 
@@ -98,10 +113,21 @@ export default function ProductDetails() {
           <div className="flex flex-col">
             <span className="mb-2 text-xs font-medium uppercase tracking-wide text-primary">{product.category_details?.name}</span>
             <h1 className="mb-2 font-display text-3xl text-foreground">{product.name}</h1>
-            <div className="mb-4 flex items-center gap-3 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1"><Star className="h-4 w-4 fill-accent text-accent" /> 4.5</span>
-              <span>(24 reviews)</span>
-            </div>
+            {reviewsData && reviewsData.total_reviews > 0 ? (
+              <div className="mb-4 flex items-center gap-3 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1 font-semibold text-foreground">
+                  <Star className="h-4 w-4 fill-amber-400 text-amber-400" /> {reviewsData.average_rating}
+                </span>
+                <span>
+                  ({reviewsData.total_reviews} {reviewsData.total_reviews === 1 ? "review" : "reviews"})
+                </span>
+              </div>
+            ) : (
+              <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+                <Star className="h-4 w-4 text-muted-foreground/40" />
+                <span>No reviews yet</span>
+              </div>
+            )}
             <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4 shrink-0" />
               <span>{product.farmer_location?.trim() || "Location not provided"}</span>
@@ -144,13 +170,112 @@ export default function ProductDetails() {
             <button
               onClick={() => setActiveTab("reviews")}
               className={`pb-3 text-sm font-medium ${activeTab === "reviews" ? "border-b-2 border-primary text-primary" : "text-muted-foreground"}`}
-            >Reviews (24)</button>
+            >
+              Reviews ({reviewsData?.total_reviews ?? 0})
+            </button>
           </div>
           <div className="py-6">
             {activeTab === "description" ? (
               <p className="max-w-2xl text-muted-foreground">{product.description}</p>
             ) : (
-              <p className="text-muted-foreground">Reviews coming soon.</p>
+              <div className="space-y-6 max-w-3xl">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border">
+                  <div>
+                    <h3 className="font-display text-lg font-bold text-foreground">
+                      Customer Reviews
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {reviewsData && reviewsData.total_reviews > 0
+                        ? `Average rating: ${reviewsData.average_rating} out of 5 stars based on ${reviewsData.total_reviews} review${reviewsData.total_reviews === 1 ? "" : "s"}`
+                        : "There are no verified customer reviews for this product yet."}
+                    </p>
+                  </div>
+                  {user?.user_type === "customer" ? (
+                    <Button
+                      size="sm"
+                      onClick={() => setIsReviewModalOpen(true)}
+                      className="gap-1.5 bg-green-600 hover:bg-green-700 text-white shrink-0"
+                    >
+                      <MessageSquarePlus className="h-4 w-4" /> Write a Review
+                    </Button>
+                  ) : !user ? (
+                    <Link to="/login">
+                      <Button size="sm" variant="outline" className="gap-1.5 shrink-0">
+                        Log in to Review
+                      </Button>
+                    </Link>
+                  ) : null}
+                </div>
+
+                {isReviewsLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2].map((i) => (
+                      <div key={i} className="animate-pulse rounded-lg border border-border p-4 space-y-2">
+                        <div className="h-4 bg-muted rounded w-1/4" />
+                        <div className="h-3 bg-muted rounded w-full" />
+                        <div className="h-3 bg-muted rounded w-3/4" />
+                      </div>
+                    ))}
+                  </div>
+                ) : !reviewsData || reviewsData.reviews.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-8 text-center bg-card">
+                    <p className="text-sm font-medium text-foreground">No customer reviews yet.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Be the first to share your experience with {product.name}!
+                    </p>
+                    {user?.user_type === "customer" && (
+                      <Button
+                        size="sm"
+                        onClick={() => setIsReviewModalOpen(true)}
+                        className="mt-4 bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        Leave the First Review
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {reviewsData.reviews.map((r) => (
+                      <div
+                        key={r.id}
+                        className="rounded-lg border border-border bg-card p-4 transition-shadow hover:shadow-sm space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm text-foreground">
+                              {r.display_name}
+                            </span>
+                            {r.verified_purchase && (
+                              <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">
+                                Verified Purchase
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(r.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="flex gap-1" aria-label={`${r.rating} out of 5 stars`}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`h-3.5 w-3.5 ${
+                                star <= r.rating
+                                  ? "fill-amber-400 text-amber-400"
+                                  : "fill-transparent text-gray-300"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        {r.title && (
+                          <h4 className="font-medium text-sm text-foreground">{r.title}</h4>
+                        )}
+                        <p className="text-sm text-muted-foreground leading-relaxed">{r.comment}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -166,6 +291,14 @@ export default function ProductDetails() {
         )}
       </div>
       <Footer />
+
+      <ProductReviewSubmissionModal
+        productSlug={slug || ""}
+        productName={product.name}
+        open={isReviewModalOpen}
+        onOpenChange={setIsReviewModalOpen}
+        onSuccess={() => refetchReviews()}
+      />
     </div>
   );
 }

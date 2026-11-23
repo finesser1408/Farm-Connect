@@ -20,7 +20,16 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-load_dotenv(BASE_DIR / '.env')
+DJANGO_ENV_FILE = os.environ.get('DJANGO_ENV_FILE', '').strip()
+if DJANGO_ENV_FILE:
+    env_file_path = Path(DJANGO_ENV_FILE)
+    if not env_file_path.is_absolute():
+        env_file_path = BASE_DIR / env_file_path
+    if not env_file_path.is_file():
+        raise ImproperlyConfigured(
+            f'DJANGO_ENV_FILE "{DJANGO_ENV_FILE}" does not exist.'
+        )
+    load_dotenv(env_file_path)
 
 
 # Quick-start development settings - unsuitable for production
@@ -80,6 +89,7 @@ INSTALLED_APPS = [
     'products.apps.ProductsConfig',
     'orders.apps.OrdersConfig',
     'payments.apps.PaymentsConfig',
+    'reviews.apps.ReviewsConfig',
     'rest_framework_simplejwt.token_blacklist',
 ]
 
@@ -211,10 +221,42 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Email Configuration
+def _env_flag(primary_key, fallback_key=None, default=False):
+    raw = os.environ.get(primary_key)
+    if raw is None and fallback_key:
+        raw = os.environ.get(fallback_key)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ('true', '1', 't', 'yes')
+
+
+def _env_int(primary_key, fallback_key=None, default=None):
+    raw = os.environ.get(primary_key)
+    if (raw is None or raw == '') and fallback_key:
+        raw = os.environ.get(fallback_key)
+    if raw is None or raw == '':
+        return default
+    return int(raw)
+
+
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST') or os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT') or os.environ.get('SMTP_PORT', '587'))
-EMAIL_USE_TLS = (os.environ.get('EMAIL_USE_TLS') or os.environ.get('SMTP_USE_TLS', 'True')).lower() == 'true'
+EMAIL_HOST = (
+    os.environ.get('EMAIL_HOST')
+    or os.environ.get('SMTP_SERVER')
+    or ('smtp.gmail.com' if DEBUG else '')
+)
+EMAIL_PORT = _env_int('EMAIL_PORT', 'SMTP_PORT', default=(587 if DEBUG else None))
+EMAIL_USE_SSL = _env_flag('EMAIL_USE_SSL', 'SMTP_USE_SSL', default=False)
+EMAIL_USE_TLS = _env_flag(
+    'EMAIL_USE_TLS',
+    'SMTP_USE_TLS',
+    default=(True if (DEBUG and not EMAIL_USE_SSL) else False),
+)
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ImproperlyConfigured(
+        'EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be enabled simultaneously.'
+    )
+EMAIL_TIMEOUT = _env_int('EMAIL_TIMEOUT', default=15)
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') or os.environ.get('SMTP_USERNAME')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD') or os.environ.get('SMTP_PASSWORD')
 DEFAULT_FROM_EMAIL = (
@@ -228,21 +270,31 @@ PASSWORD_RESET_EMAIL_PROVIDER = os.environ.get(
     'PASSWORD_RESET_EMAIL_PROVIDER',
     'resend',
 ).strip().lower()
-if PASSWORD_RESET_EMAIL_PROVIDER not in {'resend', 'django'}:
+if PASSWORD_RESET_EMAIL_PROVIDER not in {'resend', 'django', 'smtp'}:
     raise ImproperlyConfigured(
-        'PASSWORD_RESET_EMAIL_PROVIDER must be "resend" or "django".'
+        'PASSWORD_RESET_EMAIL_PROVIDER must be "resend", "smtp", or "django".'
     )
 if PASSWORD_RESET_EMAIL_PROVIDER == 'django' and not DEBUG:
     raise ImproperlyConfigured(
         'The Django email provider for password resets is only available when DEBUG is enabled.'
     )
+if not DEBUG and PASSWORD_RESET_EMAIL_PROVIDER == 'smtp':
+    if not EMAIL_HOST or not EMAIL_PORT or not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
+        raise ImproperlyConfigured(
+            'Production SMTP requires EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER, and EMAIL_HOST_PASSWORD.'
+        )
+    if not (EMAIL_USE_TLS or EMAIL_USE_SSL):
+        raise ImproperlyConfigured(
+            'Production SMTP requires either EMAIL_USE_TLS or EMAIL_USE_SSL to be enabled.'
+        )
 
 # SMTP Configuration for custom email service
-SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
-SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
-SMTP_USERNAME = os.environ.get('SMTP_USERNAME')
-SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')
-SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'True').lower() == 'true'
+SMTP_SERVER = EMAIL_HOST
+SMTP_PORT = EMAIL_PORT
+SMTP_USERNAME = EMAIL_HOST_USER
+SMTP_PASSWORD = EMAIL_HOST_PASSWORD
+SMTP_USE_TLS = EMAIL_USE_TLS
+SMTP_USE_SSL = EMAIL_USE_SSL
 
 # Resend Configuration
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY')

@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from backend.admin_mixins import NoHardDeleteAdminMixin
 from .models import Order, OrderItem
 
 
@@ -9,6 +10,7 @@ from .models import Order, OrderItem
 
 class OrderItemInline(admin.TabularInline):
     model          = OrderItem
+    can_delete     = False
     raw_id_fields  = ['product']
     readonly_fields = ('line_total',)
     fields         = ('product', 'quantity', 'price', 'line_total')
@@ -26,7 +28,7 @@ class OrderItemInline(admin.TabularInline):
 # ──────────────────────────────────────────────
 
 @admin.register(Order)
-class OrderAdmin(admin.ModelAdmin):
+class OrderAdmin(NoHardDeleteAdminMixin, admin.ModelAdmin):
     list_display = (
         'id', 'customer', 'full_name', 'email',
         'city', 'formatted_total', 'status_badge', 'created_at',
@@ -109,7 +111,7 @@ class OrderAdmin(admin.ModelAdmin):
 # ──────────────────────────────────────────────
 
 @admin.register(OrderItem)
-class OrderItemAdmin(admin.ModelAdmin):
+class OrderItemAdmin(NoHardDeleteAdminMixin, admin.ModelAdmin):
     list_display   = ('id', 'order', 'product', 'quantity', 'price', 'line_total')
     search_fields  = ('product__name', 'order__id')
     list_filter    = ('product__category',)

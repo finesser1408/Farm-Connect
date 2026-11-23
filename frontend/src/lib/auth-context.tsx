@@ -4,6 +4,8 @@ import apiClient from "./api-client";
 
 export type UserRole = "customer" | "farmer" | "admin";
 
+export type AdminRole = "super_admin" | "general_admin" | null;
+
 export interface User {
   id: number;
   email: string;
@@ -12,8 +14,18 @@ export interface User {
   last_name: string;
   user_type: UserRole;
   is_staff: boolean;
+  is_superuser?: boolean;
+  is_active?: boolean;
+  is_verified?: boolean;
+  admin_role?: AdminRole;
+  created_at?: string;
   phone?: string;
-  farmer_profile?: { farm_name: string; location: string; description: string } | null;
+  farmer_profile?: {
+    farm_name: string;
+    location: string;
+    description: string;
+    status?: "pending" | "approved" | "suspended";
+  } | null;
   customer_profile?: { address: string; city: string } | null;
 }
 

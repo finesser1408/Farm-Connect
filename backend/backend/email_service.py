@@ -20,49 +20,56 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     """Service class for handling email notifications"""
-    
-    def __init__(self):
-        self.smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
-        self.smtp_port = int(os.environ.get('SMTP_PORT', '587'))
-        self.smtp_username = os.environ.get('SMTP_USERNAME')
-        self.smtp_password = os.environ.get('SMTP_PASSWORD')
-        self.from_email = settings.DEFAULT_FROM_EMAIL
-        self.use_tls = os.environ.get('SMTP_USE_TLS', 'True').lower() == 'true'
-        
+
+    def _get_smtp_config(self):
+        host = (getattr(settings, 'EMAIL_HOST', '') or '').strip()
+        port = getattr(settings, 'EMAIL_PORT', None)
+        username = getattr(settings, 'EMAIL_HOST_USER', None)
+        password = getattr(settings, 'EMAIL_HOST_PASSWORD', None)
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or username
+        use_tls = bool(getattr(settings, 'EMAIL_USE_TLS', False))
+        use_ssl = bool(getattr(settings, 'EMAIL_USE_SSL', False))
+        timeout = int(getattr(settings, 'EMAIL_TIMEOUT', 15) or 15)
+        return {
+            'host': host,
+            'port': port,
+            'username': username,
+            'password': password,
+            'from_email': from_email,
+            'use_tls': use_tls,
+            'use_ssl': use_ssl,
+            'timeout': timeout,
+        }
+
     def send_email_smtp(self, to_email, subject, html_content=None, text_content=None, attachments=None):
         """
-        Send email using SMTP
-        
-        Args:
-            to_email (str): Recipient email address
-            subject (str): Email subject
-            html_content (str): HTML email content (optional)
-            text_content (str): Plain text email content (optional)
-            attachments (list): List of file paths to attach (optional)
-            
-        Returns:
-            dict: Success status and message
+        Send email using SMTP with STARTTLS (e.g. port 587) or implicit TLS/SSL (e.g. port 465).
         """
         try:
-            if not self.smtp_username or not self.smtp_password:
-                logger.error("SMTP credentials not configured")
-                return {'success': False, 'message': 'SMTP credentials not configured'}
-            
-            # Create message
+            cfg = self._get_smtp_config()
+            if not cfg['host'] or not cfg['port'] or not cfg['username'] or not cfg['password']:
+                logger.error("SMTP configuration is incomplete")
+                return {'success': False, 'message': 'SMTP configuration is incomplete'}
+
+            if cfg['use_tls'] and cfg['use_ssl']:
+                logger.error("SMTP TLS and SSL cannot both be enabled")
+                return {'success': False, 'message': 'Conflicting SMTP TLS/SSL settings'}
+
+            if not cfg['use_tls'] and not cfg['use_ssl']:
+                logger.error("SMTP TLS or SSL encryption must be enabled")
+                return {'success': False, 'message': 'SMTP encryption mode is not configured'}
+
             message = MIMEMultipart("alternative")
             message["Subject"] = subject
-            message["From"] = self.from_email
+            message["From"] = cfg['from_email']
             message["To"] = to_email
-            
-            # Add text content
+
             if text_content:
                 message.attach(MIMEText(text_content, "plain"))
-            
-            # Add HTML content
+
             if html_content:
                 message.attach(MIMEText(html_content, "html"))
-            
-            # Add attachments
+
             if attachments:
                 for file_path in attachments:
                     if os.path.exists(file_path):
@@ -75,21 +82,36 @@ class EmailService:
                                 f"attachment; filename= {os.path.basename(file_path)}"
                             )
                             message.attach(part)
-            
-            # Create SMTP session
+
             context = ssl.create_default_context()
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                if self.use_tls:
+            if cfg['use_ssl']:
+                with smtplib.SMTP_SSL(
+                    cfg['host'],
+                    int(cfg['port']),
+                    timeout=cfg['timeout'],
+                    context=context,
+                ) as server:
+                    server.ehlo()
+                    server.login(cfg['username'], cfg['password'])
+                    server.sendmail(cfg['from_email'], to_email, message.as_string())
+            else:
+                with smtplib.SMTP(
+                    cfg['host'],
+                    int(cfg['port']),
+                    timeout=cfg['timeout'],
+                ) as server:
+                    server.ehlo()
                     server.starttls(context=context)
-                server.login(self.smtp_username, self.smtp_password)
-                server.sendmail(self.from_email, to_email, message.as_string())
-            
-            logger.info(f"Email sent successfully to {to_email}")
+                    server.ehlo()
+                    server.login(cfg['username'], cfg['password'])
+                    server.sendmail(cfg['from_email'], to_email, message.as_string())
+
+            logger.info("Email sent successfully via SMTP")
             return {'success': True, 'message': 'Email sent successfully'}
-            
-        except Exception as e:
-            logger.error(f"Failed to send email via SMTP: {str(e)}")
-            return {'success': False, 'message': f'Failed to send email: {str(e)}'}
+
+        except Exception:
+            logger.error("Failed to send email via SMTP")
+            return {'success': False, 'message': 'Failed to send email via SMTP'}
     
     def send_email_resend(self, to_email, subject, html_content=None, text_content=None):
         """
@@ -102,7 +124,7 @@ class EmailService:
                 return {'success': False, 'message': 'Resend API key not configured'}
             
             payload = {
-                "from": self.from_email,
+                "from": getattr(settings, 'DEFAULT_FROM_EMAIL', 'onboarding@resend.dev'),
                 "to": [to_email],
                 "subject": subject,
             }
@@ -135,25 +157,16 @@ class EmailService:
             logger.error(f"Failed to send email via Resend: {str(e)}")
             return {'success': False, 'message': f'Failed to send email: {str(e)}'}
     
-    def send_email(self, to_email, subject, html_content=None, text_content=None, attachments=None, use_resend=True):
+    def send_email(self, to_email, subject, html_content=None, text_content=None, attachments=None, use_resend=None):
         """
-        Send email using preferred method
-        
-        Args:
-            to_email (str): Recipient email address
-            subject (str): Email subject
-            html_content (str): HTML email content (optional)
-            text_content (str): Plain text email content (optional)
-            attachments (list): List of file paths to attach (optional)
-            use_resend (bool): Whether to use Resend (default) or SMTP
-            
-        Returns:
-            dict: Success status and message
+        Send email using configured provider ('smtp' or 'resend').
         """
+        if use_resend is None:
+            provider = getattr(settings, 'PASSWORD_RESET_EMAIL_PROVIDER', 'resend')
+            use_resend = provider != 'smtp'
         if use_resend:
             return self.send_email_resend(to_email, subject, html_content, text_content)
-        else:
-            return self.send_email_smtp(to_email, subject, html_content, text_content, attachments)
+        return self.send_email_smtp(to_email, subject, html_content, text_content, attachments)
     
     def send_welcome_email(self, user_email, user_name):
         """Send welcome email to new user"""
@@ -325,7 +338,10 @@ class EmailService:
             logger.error("Django email backend did not send the password reset email")
             return {'success': False, 'message': 'Failed to send email'}
 
-        return self.send_email(user_email, subject, html_content, text_content)
+        if settings.PASSWORD_RESET_EMAIL_PROVIDER == 'smtp':
+            return self.send_email_smtp(user_email, subject, html_content, text_content)
+
+        return self.send_email_resend(user_email, subject, html_content, text_content)
 
 
 # Global email service instance

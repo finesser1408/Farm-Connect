@@ -7,17 +7,20 @@ __pycache__/
 *.py[cod]
 
 # Environment variables and secrets
-
 .env
-.env.
+.env.*
 !.env.example
+!.env.*.example
+
+# Database backups and local media
+backups/
+*.dump
+media/
+db.sqlite3
 
 # Git files
 .git/
 .gitignore
-
-# Local databases
-db.sqlite3
 
 # Test and development files
 

@@ -4,6 +4,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from products.models import Product
+from users.permissions import is_product_publicly_visible
 from .models import Cart, CartItem
 from .serializers import CartSerializer
 
@@ -30,7 +31,12 @@ def add_to_cart(request):
     if quantity < 1:
         return Response({'detail': 'Quantity must be at least 1.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    product = get_object_or_404(Product, id=product_id, is_available=True)
+    product = get_object_or_404(
+        Product.objects.select_related('farmer', 'farmer__farmer_profile'),
+        id=product_id,
+    )
+    if not product.is_available or not is_product_publicly_visible(product):
+        return Response({'detail': 'This product is currently unavailable for purchase.'}, status=status.HTTP_400_BAD_REQUEST)
     cart, _ = Cart.objects.get_or_create(customer=request.user)
     cart_item, created = CartItem.objects.get_or_create(
         cart=cart,
@@ -67,7 +73,12 @@ def cart_item_detail(request, product_id):
             return Response({'detail': 'Quantity must be an integer.'}, status=status.HTTP_400_BAD_REQUEST)
         if quantity < 1:
             return Response({'detail': 'Quantity must be at least 1.'}, status=status.HTTP_400_BAD_REQUEST)
-        product = get_object_or_404(Product, id=product_id, is_available=True)
+        product = get_object_or_404(
+            Product.objects.select_related('farmer', 'farmer__farmer_profile'),
+            id=product_id,
+        )
+        if not product.is_available or not is_product_publicly_visible(product):
+            return Response({'detail': 'This product is currently unavailable for purchase.'}, status=status.HTTP_400_BAD_REQUEST)
         if quantity > product.stock:
             return Response({'detail': 'Requested quantity exceeds available stock.'}, status=status.HTTP_400_BAD_REQUEST)
         CartItem.objects.update_or_create(

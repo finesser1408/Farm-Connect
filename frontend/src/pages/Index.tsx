@@ -1,14 +1,17 @@
  import { Link } from "react-router-dom";
- import { useState, useEffect, useRef } from "react";
- import { ArrowRight, Truck, Shield, Leaf, Star, ChevronRight } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { ArrowRight, Truck, Shield, Leaf, Star, ChevronRight, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
- import { motion } from "framer-motion";
+import { motion } from "framer-motion";
 import ProductCard from "@/components/ProductCard";
 import ShopByCategorySection from "@/components/ShopByCategorySection";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import TestimonialSubmissionModal from "@/components/TestimonialSubmissionModal";
 import { useQuery } from "@tanstack/react-query";
 import { productService } from "@/lib/services/product-service";
+import { reviewService } from "@/lib/services/review-service";
+import { useAuth } from "@/lib/auth-context";
 import { ProductCardSkeleton } from "@/components/Skeletons";
 import heroImage from "@/assets/tractor.jpg";
 import catFruits from "@/assets/cat-fruits.jpg";
@@ -47,18 +50,11 @@ const categoryImages: Record<string, string> = {
   livestock: catLivestock,
 };
 
-// Updated features with better descriptions and icons
+// Features with descriptions and icons
 const features = [
   { icon: Leaf, title: "100% Organic", desc: "Certified chemical-free produce from sustainable farms" },
   { icon: Truck, title: "Farm to Door", desc: "Freshly harvested and delivered within 24 hours" },
   { icon: Shield, title: "Quality Assured", desc: "Every product hand-selected for premium freshness" },
-];
-
-// NEW: Testimonials data for social proof
-const testimonials = [
-  { name: "Nicole M.", role: "Regular Customer", text: "The freshest vegetables I've ever bought! Delivery is always on time.", rating: 4 },
-  { name: "Tavonga U.", role: "Chef", text: "FarmConnect is my go-to for organic ingredients. Superior quality every time.", rating: 5 },
-  { name: "Kudzai M.", role: "Health Coach", text: "Supporting local farmers has never been easier. Love the variety!", rating: 5 },
 ];
 
 const heroCollageImages = [
@@ -241,6 +237,20 @@ const MobileHeroGallery = () => (
 );
 
 const Index = () => {
+  const { user } = useAuth();
+  const [isTestimonialModalOpen, setIsTestimonialModalOpen] = useState(false);
+
+  const {
+    data: testimonialsData,
+    isLoading: isTestimonialsLoading,
+    refetch: refetchTestimonials,
+  } = useQuery({
+    queryKey: ["testimonials"],
+    queryFn: () => reviewService.getApprovedTestimonials(),
+  });
+
+  const testimonials = testimonialsData || [];
+
   const { data: productsData, isLoading: isProductsLoading } = useQuery({
     queryKey: ["products", "featured"],
     queryFn: () => productService.getProducts({ page_size: 8 }),
@@ -432,7 +442,7 @@ const Index = () => {
         </div>
       </section>
 
-      {/* ========== TESTIMONIALS SECTION - NEW ========== */}
+      {/* ========== TESTIMONIALS SECTION ========== */}
       <section className="py-20 bg-white">
         <div className="container">
           <motion.div
@@ -445,31 +455,88 @@ const Index = () => {
             <h2 className="mt-2 font-display text-3xl font-bold text-gray-900">
               What Our <span className="text-green-600">Customers Say</span>
             </h2>
+            {user?.user_type === "customer" && (
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsTestimonialModalOpen(true)}
+                  className="gap-1.5 border-green-600 text-green-700 hover:bg-green-50"
+                >
+                  <MessageSquarePlus className="h-4 w-4" /> Share Your Experience
+                </Button>
+              </div>
+            )}
           </motion.div>
 
-          <div className="grid gap-6 md:grid-cols-3">
-            {testimonials.map((t, i) => (
-              <motion.div
-                key={t.name}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="group rounded-2xl bg-gray-50/80 p-6 transition-all duration-300 hover:bg-white hover:shadow-lg"
-              >
-                <div className="flex gap-1 mb-3">
-                  {[...Array(5)].map((_, j) => (
-                    <Star key={j} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  ))}
+          {isTestimonialsLoading ? (
+            <div className="grid gap-6 md:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse rounded-2xl bg-gray-50/80 p-6 space-y-3">
+                  <div className="flex gap-1 mb-3">
+                    {[1, 2, 3, 4, 5].map((j) => (
+                      <div key={j} className="h-4 w-4 rounded-full bg-gray-200" />
+                    ))}
+                  </div>
+                  <div className="h-4 bg-gray-200 rounded w-full" />
+                  <div className="h-4 bg-gray-200 rounded w-4/5" />
+                  <div className="pt-2">
+                    <div className="h-4 bg-gray-200 rounded w-1/3 mb-1" />
+                    <div className="h-3 bg-gray-200 rounded w-1/4" />
+                  </div>
                 </div>
-                <p className="text-gray-600 leading-relaxed">"{t.text}"</p>
-                <div className="mt-4">
-                  <p className="font-semibold text-gray-900">{t.name}</p>
-                  <p className="text-sm text-gray-500">{t.role}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : testimonials.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-10 text-center max-w-xl mx-auto">
+              <p className="text-base font-medium text-gray-700">No customer testimonials published yet.</p>
+              <p className="mt-1 text-sm text-gray-500">
+                Genuine reviews from our verified community will appear here once approved by our team.
+              </p>
+              {user?.user_type === "customer" && (
+                <Button
+                  onClick={() => setIsTestimonialModalOpen(true)}
+                  className="mt-5 bg-green-600 hover:bg-green-700 text-white"
+                  size="sm"
+                >
+                  Be the First to Share Feedback
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-3">
+              {testimonials.map((t, i) => (
+                <motion.div
+                  key={t.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1 }}
+                  className="group rounded-2xl bg-gray-50/80 p-6 transition-all duration-300 hover:bg-white hover:shadow-lg flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex gap-1 mb-3" aria-label={`${t.rating} out of 5 stars`}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`h-4 w-4 ${
+                            star <= t.rating
+                              ? "fill-yellow-400 text-yellow-400"
+                              : "fill-transparent text-gray-300"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-gray-600 leading-relaxed italic">"{t.comment}"</p>
+                  </div>
+                  <div className="mt-4 pt-2 border-t border-gray-100">
+                    <p className="font-semibold text-gray-900">{t.display_name}</p>
+                    <p className="text-sm text-gray-500">{t.role_or_title || "Community Member"}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -531,6 +598,12 @@ const Index = () => {
       </section>
 
       <Footer />
+
+      <TestimonialSubmissionModal
+        open={isTestimonialModalOpen}
+        onOpenChange={setIsTestimonialModalOpen}
+        onSuccess={() => refetchTestimonials()}
+      />
     </div>
   );
 };

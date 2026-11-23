@@ -1,9 +1,13 @@
 import apiClient from "../api-client";
 
+export type ProductModerationStatus = "active" | "hidden" | "removed";
+
 export interface Product {
   id: number;
+  farmer_id?: number;
   farmer_name: string;
   farmer_location: string;
+  farmer_status?: string;
   category: number | null;
   category_details: Category | null;
   name: string;
@@ -13,6 +17,11 @@ export interface Product {
   stock: number;
   image: string | null;
   is_available: boolean;
+  moderation_status?: ProductModerationStatus;
+  moderation_reason?: string;
+  moderated_at?: string | null;
+  moderated_by?: number | null;
+  moderated_by_email?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -35,9 +44,11 @@ export interface ProductQueryParams {
   available?: "all" | "true" | "false";
   category?: string;
   farmer?: string;
+  farmer_id?: number;
   location?: string;
   max_price?: number;
   min_price?: number;
+  moderation_status?: "all" | ProductModerationStatus;
   ordering?: "price" | "-price" | "created_at" | "-created_at" | "name" | "-name";
   page?: number;
   page_size?: number;
@@ -46,6 +57,7 @@ export interface ProductQueryParams {
 }
 
 export interface ProductInput {
+  farmer_id?: number;
   name: string;
   price: string;
   stock: number;
@@ -56,7 +68,6 @@ export interface ProductInput {
 export const productService = {
   getProducts: async (params?: ProductQueryParams) => {
     // Django can return either a raw list or a paginated object depending on setup.
-    // We use any here and handle the branching in the component, or define a union.
     const response = await apiClient.get<Product[] | PaginatedResponse<Product>>("/products/", { params });
     return response.data;
   },
@@ -74,6 +85,34 @@ export const productService = {
   createProduct: async (data: FormData | ProductInput) => {
     const response = await apiClient.post<Product>("/products/", data, {
       headers: data instanceof FormData ? { "Content-Type": "multipart/form-data" } : undefined,
+    });
+    return response.data;
+  },
+
+  updateProduct: async (slug: string, data: FormData | Partial<ProductInput>) => {
+    const response = await apiClient.patch<Product>(`/products/${slug}/`, data, {
+      headers: data instanceof FormData ? { "Content-Type": "multipart/form-data" } : undefined,
+    });
+    return response.data;
+  },
+
+  hideProduct: async (slug: string, reason?: string) => {
+    const response = await apiClient.patch<Product>(`/products/${slug}/hide/`, {
+      reason: reason?.trim() || "",
+    });
+    return response.data;
+  },
+
+  restoreProduct: async (slug: string, reason?: string) => {
+    const response = await apiClient.patch<Product>(`/products/${slug}/restore/`, {
+      reason: reason?.trim() || "",
+    });
+    return response.data;
+  },
+
+  removeProduct: async (slug: string, reason?: string) => {
+    const response = await apiClient.patch<Product>(`/products/${slug}/remove/`, {
+      reason: reason?.trim() || "",
     });
     return response.data;
   },

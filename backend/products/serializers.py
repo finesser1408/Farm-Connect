@@ -52,8 +52,11 @@ class CategorySerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
+    farmer_id = serializers.IntegerField(source='farmer.id', read_only=True)
     farmer_name = serializers.SerializerMethodField()
     farmer_location = serializers.SerializerMethodField()
+    farmer_status = serializers.SerializerMethodField()
+    moderated_by_email = serializers.SerializerMethodField()
     slug = serializers.SlugField(read_only=True)
     category_details = CategorySerializer(source='category', read_only=True)
     category = serializers.PrimaryKeyRelatedField(
@@ -67,8 +70,10 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id',
+            'farmer_id',
             'farmer_name',
             'farmer_location',
+            'farmer_status',
             'category',
             'category_details',
             'name',
@@ -78,10 +83,30 @@ class ProductSerializer(serializers.ModelSerializer):
             'stock',
             'image',
             'is_available',
+            'moderation_status',
+            'moderation_reason',
+            'moderated_at',
+            'moderated_by',
+            'moderated_by_email',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'farmer_name', 'farmer_location', 'category_details', 'created_at', 'updated_at', 'is_available']
+        read_only_fields = [
+            'id',
+            'farmer_id',
+            'farmer_name',
+            'farmer_location',
+            'farmer_status',
+            'category_details',
+            'is_available',
+            'moderation_status',
+            'moderation_reason',
+            'moderated_at',
+            'moderated_by',
+            'moderated_by_email',
+            'created_at',
+            'updated_at',
+        ]
 
     def get_farmer_name(self, obj):
         return f"{obj.farmer.first_name} {obj.farmer.last_name}".strip()
@@ -91,3 +116,12 @@ class ProductSerializer(serializers.ModelSerializer):
             return obj.farmer.farmer_profile.location.strip()
         except ObjectDoesNotExist:
             return ''
+
+    def get_farmer_status(self, obj):
+        try:
+            return obj.farmer.farmer_profile.status
+        except ObjectDoesNotExist:
+            return ''
+
+    def get_moderated_by_email(self, obj):
+        return obj.moderated_by.email if obj.moderated_by else None

@@ -183,7 +183,11 @@ class UserProfileAPITests(APITestCase):
             # 'category': 1 
         }
         
-        # Farmer can attempt (might fail on category but check 403)
+        # Approved farmer can attempt (might fail on category but check 403)
+        FarmerProfile.objects.get_or_create(
+            user=self.farmer_user,
+            defaults={'farm_name': 'Test Farm', 'location': 'Harare', 'status': 'approved'},
+        )
         self.client.force_authenticate(user=self.farmer_user)
         response = self.client.post(url, data)
         # We check that it's NOT a 403.
@@ -364,3 +368,1256 @@ class PasswordResetEmailProviderTests(APITestCase):
 
         self.assertTrue(result['success'])
         send_resend.assert_called_once()
+
+    @override_settings(
+        DEBUG=False,
+        PASSWORD_RESET_EMAIL_PROVIDER='smtp',
+        EMAIL_HOST='smtp.org.example',
+        EMAIL_PORT=587,
+        EMAIL_USE_TLS=True,
+        EMAIL_USE_SSL=False,
+        EMAIL_HOST_USER='noreply@org.example',
+        EMAIL_HOST_PASSWORD='secret-test-password',
+        DEFAULT_FROM_EMAIL='noreply@org.example',
+    )
+    @patch('backend.email_service.smtplib.SMTP')
+    def test_production_smtp_starttls_on_587_when_debug_false(self, mock_smtp):
+        server = mock_smtp.return_value.__enter__.return_value
+        result = self.email_service.send_password_reset(
+            'person@example.com',
+            'Test User',
+            'https://farmconnect.example/password-reset/confirm/uid/token/',
+        )
+
+        self.assertTrue(result['success'])
+        mock_smtp.assert_called_once()
+        args, kwargs = mock_smtp.call_args
+        self.assertEqual(args, ('smtp.org.example', 587))
+        self.assertIn('timeout', kwargs)
+        server.starttls.assert_called_once()
+        server.login.assert_called_once_with('noreply@org.example', 'secret-test-password')
+        server.sendmail.assert_called_once()
+
+    @override_settings(
+        DEBUG=False,
+        PASSWORD_RESET_EMAIL_PROVIDER='smtp',
+        EMAIL_HOST='smtp.org.example',
+        EMAIL_PORT=465,
+        EMAIL_USE_TLS=False,
+        EMAIL_USE_SSL=True,
+        EMAIL_HOST_USER='noreply@org.example',
+        EMAIL_HOST_PASSWORD='secret-test-password',
+        DEFAULT_FROM_EMAIL='noreply@org.example',
+    )
+    @patch('backend.email_service.smtplib.SMTP_SSL')
+    def test_production_smtp_implicit_ssl_on_465_when_debug_false(self, mock_smtp_ssl):
+        server = mock_smtp_ssl.return_value.__enter__.return_value
+        result = self.email_service.send_password_reset(
+            'person@example.com',
+            'Test User',
+            'https://farmconnect.example/password-reset/confirm/uid/token/',
+        )
+
+        self.assertTrue(result['success'])
+        mock_smtp_ssl.assert_called_once()
+        args, kwargs = mock_smtp_ssl.call_args
+        self.assertEqual(args, ('smtp.org.example', 465))
+        self.assertIn('context', kwargs)
+        server.login.assert_called_once_with('noreply@org.example', 'secret-test-password')
+        server.sendmail.assert_called_once()
+
+    @override_settings(
+        DEBUG=False,
+        PASSWORD_RESET_EMAIL_PROVIDER='smtp',
+        EMAIL_HOST='',
+        EMAIL_PORT=None,
+        EMAIL_USE_TLS=False,
+        EMAIL_USE_SSL=False,
+        EMAIL_HOST_USER='',
+        EMAIL_HOST_PASSWORD='',
+    )
+    def test_production_smtp_rejects_incomplete_or_unencrypted_config(self):
+        result = self.email_service.send_password_reset(
+            'person@example.com',
+            'Test User',
+            'https://farmconnect.example/password-reset/confirm/uid/token/',
+        )
+        self.assertFalse(result['success'])
+
+    @override_settings(
+        DEBUG=False,
+        PASSWORD_RESET_EMAIL_PROVIDER='smtp',
+        EMAIL_HOST='smtp.org.example',
+        EMAIL_PORT=587,
+        EMAIL_USE_TLS=True,
+        EMAIL_USE_SSL=False,
+        EMAIL_HOST_USER='noreply@org.example',
+        EMAIL_HOST_PASSWORD='secret-test-password',
+        DEFAULT_FROM_EMAIL='noreply@org.example',
+        FRONTEND_URL='https://farmconnect.hpc.ac.zw',
+    )
+    @patch('backend.email_service.smtplib.SMTP')
+    def test_send_email_and_password_reset_endpoint_route_to_smtp(self, mock_smtp):
+        server = mock_smtp.return_value.__enter__.return_value
+        welcome = self.email_service.send_email(
+            'person@example.com',
+            'Welcome',
+            text_content='Welcome to FarmConnect',
+        )
+        self.assertTrue(welcome['success'])
+
+        user = User.objects.create_user(
+            username='smtp_reset_user',
+            email='smtp_reset_user@example.com',
+            password='OldPassword123!',
+            user_type='customer',
+        )
+        res = self.client.post(
+            reverse('users:password-reset-request'),
+            {'email': user.email},
+            format='json',
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(mock_smtp.call_count, 2)
+        self.assertEqual(server.starttls.call_count, 2)
+        self.assertEqual(server.sendmail.call_count, 2)
+
+
+class AdminRBACAndAuditTests(APITestCase):
+    def setUp(self):
+        from users.models import AdminAuditLog
+        self.AdminAuditLog = AdminAuditLog
+
+        self.super_admin = User.objects.create_superuser(
+            username='superadmin',
+            email='superadmin@example.com',
+            password='SuperAdminPassword123!',
+            first_name='Super',
+            last_name='Admin',
+        )
+        self.second_super_admin = User.objects.create_superuser(
+            username='superadmin2',
+            email='superadmin2@example.com',
+            password='SuperAdminPassword123!',
+            first_name='Second',
+            last_name='Super',
+        )
+        self.general_admin = User.objects.create_user(
+            username='generaladmin',
+            email='generaladmin@example.com',
+            password='GeneralAdminPassword123!',
+            user_type='admin',
+            is_staff=True,
+            is_superuser=False,
+            first_name='General',
+            last_name='Admin',
+        )
+        self.customer = User.objects.create_user(
+            username='customer_rbac',
+            email='customer_rbac@example.com',
+            password='CustomerPassword123!',
+            user_type='customer',
+            first_name='Jane',
+            last_name='Shopper',
+        )
+        self.farmer = User.objects.create_user(
+            username='farmer_rbac',
+            email='farmer_rbac@example.com',
+            password='FarmerPassword123!',
+            user_type='farmer',
+            first_name='Tendai',
+            last_name='Grower',
+        )
+        FarmerProfile.objects.create(
+            user=self.farmer,
+            farm_name='Mazowe Greens',
+            location='Mazowe',
+        )
+
+    def test_super_admin_can_assign_and_revoke_general_admin_and_logs_audit(self):
+        self.client.force_authenticate(user=self.super_admin)
+        role_url = reverse('users:admin-user-role-update', args=[self.customer.pk])
+
+        # Promote customer -> General Admin
+        promote_res = self.client.patch(
+            role_url,
+            {'role': 'general_admin', 'reason': 'Operations onboarding'},
+            format='json',
+        )
+        self.assertEqual(promote_res.status_code, status.HTTP_200_OK, promote_res.data)
+        self.assertEqual(promote_res.data['admin_role'], 'general_admin')
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.user_type, 'admin')
+        self.assertTrue(self.customer.is_staff)
+        self.assertFalse(self.customer.is_superuser)
+
+        # Revoke General Admin -> Customer
+        revoke_res = self.client.patch(
+            role_url,
+            {'role': 'customer', 'reason': 'Rotation complete'},
+            format='json',
+        )
+        self.assertEqual(revoke_res.status_code, status.HTTP_200_OK, revoke_res.data)
+        self.assertIsNone(revoke_res.data['admin_role'])
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.user_type, 'customer')
+        self.assertFalse(self.customer.is_staff)
+        self.assertFalse(self.customer.is_superuser)
+
+        # Verify immutable audit log entries exist
+        actions = list(
+            self.AdminAuditLog.objects.filter(target_id=str(self.customer.pk))
+            .order_by('created_at')
+            .values_list('action', 'actor_email')
+        )
+        self.assertEqual(
+            actions,
+            [
+                ('assign_general_admin', self.super_admin.email),
+                ('revoke_general_admin', self.super_admin.email),
+            ],
+        )
+
+    def test_general_admin_cannot_assign_roles_or_promote_self(self):
+        self.client.force_authenticate(user=self.general_admin)
+
+        # Cannot assign General Admin to another user
+        res_other = self.client.patch(
+            reverse('users:admin-user-role-update', args=[self.customer.pk]),
+            {'role': 'general_admin'},
+            format='json',
+        )
+        self.assertEqual(res_other.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Cannot promote self via role endpoint
+        res_self = self.client.patch(
+            reverse('users:admin-user-role-update', args=[self.general_admin.pk]),
+            {'role': 'general_admin'},
+            format='json',
+        )
+        self.assertEqual(res_self.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Cannot escalate via ordinary profile update endpoint
+        res_profile = self.client.patch(
+            reverse('users:update-profile'),
+            {'is_superuser': True, 'first_name': 'Escalated'},
+            format='json',
+        )
+        self.assertEqual(res_profile.status_code, status.HTTP_403_FORBIDDEN)
+        self.general_admin.refresh_from_db()
+        self.assertFalse(self.general_admin.is_superuser)
+
+    def test_customer_and_farmer_cannot_access_role_or_audit_endpoints(self):
+        for user in (self.customer, self.farmer):
+            self.client.force_authenticate(user=user)
+            self.assertEqual(
+                self.client.get(reverse('users:admin-user-list')).status_code,
+                status.HTTP_403_FORBIDDEN,
+            )
+            self.assertEqual(
+                self.client.patch(
+                    reverse('users:admin-user-role-update', args=[self.customer.pk]),
+                    {'role': 'general_admin'},
+                    format='json',
+                ).status_code,
+                status.HTTP_403_FORBIDDEN,
+            )
+            self.assertEqual(
+                self.client.get(reverse('users:admin-audit-log-list')).status_code,
+                status.HTTP_403_FORBIDDEN,
+            )
+
+    def test_super_admin_can_suspend_and_reactivate_general_admin(self):
+        self.client.force_authenticate(user=self.super_admin)
+        status_url = reverse('users:admin-user-status-update', args=[self.general_admin.pk])
+
+        # Suspend General Admin
+        suspend_res = self.client.patch(
+            status_url,
+            {'is_active': False, 'reason': 'Temporary leave'},
+            format='json',
+        )
+        self.assertEqual(suspend_res.status_code, status.HTTP_200_OK)
+        self.assertFalse(suspend_res.data['is_active'])
+
+        # Suspended General Admin cannot access admin endpoints even with existing auth
+        self.general_admin.refresh_from_db()
+        self.client.force_authenticate(user=self.general_admin)
+        blocked_res = self.client.get(reverse('users:admin-user-list'))
+        self.assertEqual(blocked_res.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Super Admin reactivates General Admin
+        self.client.force_authenticate(user=self.super_admin)
+        reactivate_res = self.client.patch(
+            status_url,
+            {'is_active': True, 'reason': 'Returned'},
+            format='json',
+        )
+        self.assertEqual(reactivate_res.status_code, status.HTTP_200_OK)
+        self.assertTrue(reactivate_res.data['is_active'])
+
+        # Reactivated General Admin regains read access to user list
+        self.general_admin.refresh_from_db()
+        self.client.force_authenticate(user=self.general_admin)
+        self.assertEqual(
+            self.client.get(reverse('users:admin-user-list')).status_code,
+            status.HTTP_200_OK,
+        )
+
+    def test_general_admin_cannot_modify_suspend_or_delete_other_admins_or_super_admins(self):
+        self.client.force_authenticate(user=self.general_admin)
+
+        # Cannot suspend Super Admin or another General Admin
+        self.assertEqual(
+            self.client.patch(
+                reverse('users:admin-user-status-update', args=[self.super_admin.pk]),
+                {'is_active': False},
+                format='json',
+            ).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        other_general_admin = User.objects.create_user(
+            username='generaladmin2',
+            email='generaladmin2@example.com',
+            password='GeneralAdminPassword123!',
+            user_type='admin',
+            is_staff=True,
+        )
+        self.assertEqual(
+            self.client.patch(
+                reverse('users:admin-user-status-update', args=[other_general_admin.pk]),
+                {'is_active': False},
+                format='json',
+            ).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        # Cannot bypass via admin_user_detail PUT or DELETE
+        detail_super_url = reverse('users:admin-user-detail', args=[self.super_admin.pk])
+        self.assertEqual(
+            self.client.put(detail_super_url, {'first_name': 'Hacked'}, format='json').status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assertEqual(
+            self.client.put(
+                detail_super_url,
+                {'is_superuser': False, 'user_type': 'customer'},
+                format='json',
+            ).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assertEqual(self.client.delete(detail_super_url).status_code, status.HTTP_403_FORBIDDEN)
+
+        # Cannot bypass via admin_user_detail on non-admin to escalate privileges
+        detail_customer_url = reverse('users:admin-user-detail', args=[self.customer.pk])
+        self.assertEqual(
+            self.client.put(
+                detail_customer_url,
+                {'user_type': 'admin', 'is_superuser': True},
+                format='json',
+            ).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_super_admin_self_and_last_super_admin_protections(self):
+        # Remove second superuser so super_admin is the last active Super Admin
+        self.second_super_admin.delete()
+        self.client.force_authenticate(user=self.super_admin)
+
+        # Cannot demote self / last active Super Admin
+        self.assertEqual(
+            self.client.patch(
+                reverse('users:admin-user-role-update', args=[self.super_admin.pk]),
+                {'role': 'customer'},
+                format='json',
+            ).status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        # Cannot suspend self / last active Super Admin
+        self.assertEqual(
+            self.client.patch(
+                reverse('users:admin-user-status-update', args=[self.super_admin.pk]),
+                {'is_active': False},
+                format='json',
+            ).status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        # Cannot delete self / last active Super Admin
+        self.assertEqual(
+            self.client.delete(
+                reverse('users:admin-user-detail', args=[self.super_admin.pk])
+            ).status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.super_admin.refresh_from_db()
+        self.assertTrue(self.super_admin.is_active)
+        self.assertTrue(self.super_admin.is_superuser)
+
+    def test_super_admin_cannot_demote_suspend_or_delete_another_super_admin(self):
+        self.client.force_authenticate(user=self.super_admin)
+
+        self.assertEqual(
+            self.client.patch(
+                reverse('users:admin-user-role-update', args=[self.second_super_admin.pk]),
+                {'role': 'customer'},
+                format='json',
+            ).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assertEqual(
+            self.client.patch(
+                reverse('users:admin-user-status-update', args=[self.second_super_admin.pk]),
+                {'is_active': False},
+                format='json',
+            ).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assertEqual(
+            self.client.delete(
+                reverse('users:admin-user-detail', args=[self.second_super_admin.pk])
+            ).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_audit_log_access_sanitization_and_immutability(self):
+        # Direct log sanitization test: secrets/passwords/tokens must be stripped
+        entry = self.AdminAuditLog.log(
+            actor=self.super_admin,
+            action='test_sanitization',
+            target_type='user',
+            target_id=self.customer.pk,
+            target_repr=self.customer.email,
+            details={
+                'reason': 'check',
+                'password': 'must-not-be-stored',
+                'access_token': 'jwt-secret',
+                'smtp_password': 'smtp-secret',
+            },
+        )
+        self.assertEqual(entry.details, {'reason': 'check'})
+
+        # General Admin cannot read audit logs
+        self.client.force_authenticate(user=self.general_admin)
+        audit_url = reverse('users:admin-audit-log-list')
+        self.assertEqual(self.client.get(audit_url).status_code, status.HTTP_403_FORBIDDEN)
+
+        # Super Admin can read audit logs, and cannot mutate them via API
+        self.client.force_authenticate(user=self.super_admin)
+        get_res = self.client.get(audit_url)
+        self.assertEqual(get_res.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(get_res.data['count'], 1)
+        self.assertEqual(
+            self.client.post(audit_url, {'action': 'tamper'}, format='json').status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+        self.assertEqual(
+            self.client.delete(audit_url).status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    def test_admin_user_list_search_role_status_filters_and_pagination(self):
+        # Suspend farmer so we have both active & suspended accounts
+        self.farmer.is_active = False
+        self.farmer.save(update_fields=['is_active'])
+
+        self.client.force_authenticate(user=self.super_admin)
+        list_url = reverse('users:admin-user-list')
+
+        # Paginated listing
+        page_res = self.client.get(list_url, {'page': 1, 'page_size': 2})
+        self.assertEqual(page_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(page_res.data['count'], 5)
+        self.assertEqual(len(page_res.data['results']), 2)
+        self.assertIsNotNone(page_res.data['next'])
+
+        # Full-name search
+        search_res = self.client.get(list_url, {'search': 'Jane Shopper', 'page': 1})
+        self.assertEqual(search_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(search_res.data['count'], 1)
+        self.assertEqual(search_res.data['results'][0]['email'], self.customer.email)
+
+        # Role filter
+        ga_res = self.client.get(list_url, {'role': 'general_admin', 'page': 1})
+        self.assertEqual(ga_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(ga_res.data['count'], 1)
+        self.assertEqual(ga_res.data['results'][0]['email'], self.general_admin.email)
+
+        sa_res = self.client.get(list_url, {'role': 'super_admin', 'page': 1})
+        self.assertEqual(sa_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(sa_res.data['count'], 2)
+
+        # Status filter
+        suspended_res = self.client.get(list_url, {'status': 'suspended', 'page': 1})
+        self.assertEqual(suspended_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(suspended_res.data['count'], 1)
+        self.assertEqual(suspended_res.data['results'][0]['email'], self.farmer.email)
+
+        # General Admin can also view paginated list
+        self.client.force_authenticate(user=self.general_admin)
+        ga_list = self.client.get(list_url, {'page': 1, 'page_size': 10})
+        self.assertEqual(ga_list.status_code, status.HTTP_200_OK)
+        self.assertEqual(ga_list.data['count'], 5)
+
+    def test_suspended_admin_jwt_rejected_and_super_admin_can_suspend_customer(self):
+        # Issue real JWT for general_admin
+        login_res = self.client.post(
+            reverse('users:login'),
+            {'email': self.general_admin.email, 'password': 'GeneralAdminPassword123!'},
+            format='json',
+        )
+        self.assertEqual(login_res.status_code, status.HTTP_200_OK)
+        ga_token = login_res.data['access']
+
+        # Super Admin suspends general_admin
+        self.client.force_authenticate(user=self.super_admin)
+        suspend_res = self.client.patch(
+            reverse('users:admin-user-status-update', args=[self.general_admin.pk]),
+            {'is_active': False},
+            format='json',
+        )
+        self.assertEqual(suspend_res.status_code, status.HTTP_200_OK)
+
+        # Existing JWT for suspended admin must be rejected on protected API
+        self.client.force_authenticate(user=None)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {ga_token}')
+        blocked = self.client.get(reverse('users:admin-user-list'))
+        self.assertIn(blocked.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+        self.client.credentials()
+
+        # Super Admin can suspend/reactivate customer, General Admin cannot
+        self.client.force_authenticate(user=self.super_admin)
+        cust_status_url = reverse('users:admin-user-status-update', args=[self.customer.pk])
+        self.assertEqual(
+            self.client.patch(cust_status_url, {'is_active': False}, format='json').status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            self.client.patch(cust_status_url, {'is_active': True}, format='json').status_code,
+            status.HTTP_200_OK,
+        )
+
+        # Reactivate general_admin and verify General Admin cannot suspend customer
+        self.general_admin.is_active = True
+        self.general_admin.save(update_fields=['is_active'])
+        self.client.force_authenticate(user=self.general_admin)
+        self.assertEqual(
+            self.client.patch(cust_status_url, {'is_active': False}, format='json').status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+
+class AdminFarmerManagementTests(APITestCase):
+    def setUp(self):
+        from products.models import Category, Product
+        from orders.models import Order, OrderItem
+        from users.models import AdminAuditLog
+
+        self.Category = Category
+        self.Product = Product
+        self.Order = Order
+        self.OrderItem = OrderItem
+        self.AdminAuditLog = AdminAuditLog
+
+        self.super_admin = User.objects.create_superuser(
+            username='sa_farmers',
+            email='sa_farmers@example.com',
+            password='SuperPassword123!',
+        )
+        self.general_admin = User.objects.create_user(
+            username='ga_farmers',
+            email='ga_farmers@example.com',
+            password='GeneralPassword123!',
+            user_type='admin',
+            is_staff=True,
+        )
+        self.customer = User.objects.create_user(
+            username='cust_farmers',
+            email='cust_farmers@example.com',
+            password='CustomerPassword123!',
+            user_type='customer',
+            first_name='Tariro',
+            last_name='Buyer',
+        )
+        self.approved_farmer = User.objects.create_user(
+            username='approved_farmer',
+            email='approved_farmer@example.com',
+            password='FarmerPassword123!',
+            user_type='farmer',
+            first_name='Nyasha',
+            last_name='Moyo',
+        )
+        self.approved_profile = FarmerProfile.objects.create(
+            user=self.approved_farmer,
+            farm_name='Moyo Valley',
+            location='Harare',
+            status='approved',
+        )
+        self.pending_farmer = User.objects.create_user(
+            username='pending_farmer',
+            email='pending_farmer@example.com',
+            password='FarmerPassword123!',
+            user_type='farmer',
+            first_name='Kudzai',
+            last_name='Chipo',
+        )
+        self.pending_profile = FarmerProfile.objects.create(
+            user=self.pending_farmer,
+            farm_name='Chipo Homestead',
+            location='Mutare',
+            status='pending',
+        )
+
+        self.category, _ = Category.objects.get_or_create(slug='vegetables', defaults={'name': 'Vegetables'})
+        self.approved_product = Product.objects.create(
+            farmer=self.approved_farmer,
+            category=self.category,
+            name='Harare Tomatoes',
+            slug='harare-tomatoes',
+            description='Fresh vine tomatoes',
+            price='2.00',
+            stock=25,
+        )
+        self.out_of_stock_product = Product.objects.create(
+            farmer=self.approved_farmer,
+            category=self.category,
+            name='Sold Out Kale',
+            slug='sold-out-kale',
+            description='Out of stock item',
+            price='1.00',
+            stock=0,
+        )
+
+    def test_unauthorized_users_cannot_access_admin_farmer_endpoints(self):
+        list_url = reverse('users:admin-farmer-list-create')
+        approve_url = reverse('users:admin-farmer-approve', args=[self.pending_farmer.pk])
+
+        # Anonymous
+        self.assertEqual(self.client.get(list_url).status_code, status.HTTP_401_UNAUTHORIZED)
+        # Customer
+        self.client.force_authenticate(user=self.customer)
+        self.assertEqual(self.client.get(list_url).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.patch(approve_url, {}, format='json').status_code, status.HTTP_403_FORBIDDEN)
+        # Farmer
+        self.client.force_authenticate(user=self.approved_farmer)
+        self.assertEqual(self.client.get(list_url).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.post(list_url, {}, format='json').status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_farmer_list_search_status_filter_and_pagination(self):
+        self.client.force_authenticate(user=self.general_admin)
+        list_url = reverse('users:admin-farmer-list-create')
+
+        res = self.client.get(list_url, {'page': 1, 'page_size': 10})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['count'], 2)
+
+        pending_res = self.client.get(list_url, {'status': 'pending', 'page': 1})
+        self.assertEqual(pending_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(pending_res.data['count'], 1)
+        self.assertEqual(pending_res.data['results'][0]['email'], self.pending_farmer.email)
+
+        search_res = self.client.get(list_url, {'search': 'Nyasha Moyo', 'page': 1})
+        self.assertEqual(search_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(search_res.data['count'], 1)
+        self.assertEqual(search_res.data['results'][0]['product_count'], 2)
+
+    @patch('users.api_views.email_service.send_welcome_email')
+    def test_admin_registers_farmer_safely_without_sending_email_or_exposing_password(self, send_welcome):
+        self.client.force_authenticate(user=self.general_admin)
+        list_url = reverse('users:admin-farmer-list-create')
+
+        payload = {
+            'first_name': 'Chiedza',
+            'last_name': 'Gumbo',
+            'email': 'chiedza@farm.co.zw',
+            'phone': '+263771234567',
+            'password': 'UniqueFarmPassword987!',
+            'password_confirm': 'UniqueFarmPassword987!',
+            'farm_name': 'Gumbo Organics',
+            'location': 'Gweru',
+            'description': 'Organic tubers and greens',
+        }
+        res = self.client.post(list_url, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.data)
+        self.assertEqual(res.data['status'], 'pending')
+        self.assertNotIn('password', res.data)
+        send_welcome.assert_not_called()
+
+        created_user = User.objects.get(email='chiedza@farm.co.zw')
+        self.assertEqual(created_user.user_type, 'farmer')
+        self.assertFalse(created_user.is_staff)
+        self.assertFalse(created_user.is_superuser)
+        self.assertTrue(created_user.check_password('UniqueFarmPassword987!'))
+
+        # Duplicate email rejected
+        dup = self.client.post(list_url, payload, format='json')
+        self.assertEqual(dup.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('email', dup.data)
+
+        # Audit log contains no password
+        audit = self.AdminAuditLog.objects.get(action='create_farmer', target_id=str(created_user.pk))
+        self.assertNotIn('password', str(audit.details).lower())
+
+    def test_farmer_lifecycle_approve_suspend_reactivate_and_product_order_enforcement(self):
+        # 1. Create a historical order before suspension
+        order = self.Order.objects.create(
+            customer=self.customer,
+            first_name='Tariro',
+            last_name='Buyer',
+            email=self.customer.email,
+            address='12 Farm Rd',
+            postal_code='0000',
+            city='Harare',
+            total_amount='4.00',
+            status='paid',
+        )
+        order_item = self.OrderItem.objects.create(
+            order=order,
+            product=self.approved_product,
+            price='2.00',
+            quantity=2,
+        )
+
+        # Put approved product into customer's cart BEFORE suspension
+        self.client.force_authenticate(user=self.customer)
+        add_cart_res = self.client.post(
+            '/api/v1/cart/add/',
+            {'product_id': self.approved_product.id, 'quantity': 1},
+            format='json',
+        )
+        self.assertEqual(add_cart_res.status_code, status.HTTP_201_CREATED)
+
+        # 2. General Admin approves pending farmer
+        self.client.force_authenticate(user=self.general_admin)
+        approve_res = self.client.patch(
+            reverse('users:admin-farmer-approve', args=[self.pending_farmer.pk]),
+            {'reason': 'Verified farm location'},
+            format='json',
+        )
+        self.assertEqual(approve_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(approve_res.data['status'], 'approved')
+
+        # 3. General Admin suspends approved_farmer (User.is_active stays True!)
+        suspend_res = self.client.patch(
+            reverse('users:admin-farmer-suspend', args=[self.approved_farmer.pk]),
+            {'reason': 'Quality audit'},
+            format='json',
+        )
+        self.assertEqual(suspend_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(suspend_res.data['status'], 'suspended')
+        self.approved_farmer.refresh_from_db()
+        self.assertTrue(self.approved_farmer.is_active)  # Separate from login deactivation
+
+        # 4. Suspended farmer cannot create or edit products
+        self.client.force_authenticate(user=self.approved_farmer)
+        create_blocked = self.client.post(
+            reverse('product-list-create'),
+            {
+                'name': 'Blocked Produce',
+                'price': '3.00',
+                'stock': 10,
+                'description': 'Should fail',
+                'category': self.category.id,
+            },
+            format='json',
+        )
+        self.assertEqual(create_blocked.status_code, status.HTTP_403_FORBIDDEN)
+
+        edit_blocked = self.client.patch(
+            reverse('product-detail', args=[self.approved_product.slug]),
+            {'price': '5.00'},
+            format='json',
+        )
+        self.assertEqual(edit_blocked.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 5. Products remain in DB, but hidden from public listing, public detail, cart add, and checkout
+        self.assertTrue(self.Product.objects.filter(pk=self.approved_product.pk).exists())
+        self.client.force_authenticate(user=None)
+        public_list = self.client.get(reverse('product-list-create'))
+        self.assertEqual(public_list.status_code, status.HTTP_200_OK)
+        self.assertNotIn(
+            self.approved_product.slug,
+            [p['slug'] for p in public_list.data['results']],
+        )
+        public_detail = self.client.get(reverse('product-detail', args=[self.approved_product.slug]))
+        self.assertEqual(public_detail.status_code, status.HTTP_404_NOT_FOUND)
+
+        self.client.force_authenticate(user=self.customer)
+        cart_add_blocked = self.client.post(
+            '/api/v1/cart/add/',
+            {'product_id': self.approved_product.id, 'quantity': 1},
+            format='json',
+        )
+        self.assertEqual(cart_add_blocked.status_code, status.HTTP_400_BAD_REQUEST)
+
+        checkout_blocked = self.client.post(
+            '/api/v1/cart/orders/create/',
+            {
+                'first_name': 'Tariro',
+                'last_name': 'Buyer',
+                'email': self.customer.email,
+                'phone': '+263771234567',
+                'address': '12 Farm Rd',
+                'postal_code': '0000',
+                'city': 'Harare',
+                'payment_method': 'cod',
+            },
+            format='json',
+        )
+        self.assertEqual(checkout_blocked.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Historical order intact
+        self.assertTrue(self.OrderItem.objects.filter(pk=order_item.pk).exists())
+
+        # 6. Reactivate farmer: restores active products publicly, keeps out-of-stock unavailable
+        self.client.force_authenticate(user=self.general_admin)
+        reactivate_res = self.client.patch(
+            reverse('users:admin-farmer-reactivate', args=[self.approved_farmer.pk]),
+            {'reason': 'Audit passed'},
+            format='json',
+        )
+        self.assertEqual(reactivate_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(reactivate_res.data['status'], 'approved')
+
+        self.out_of_stock_product.refresh_from_db()
+        self.assertFalse(self.out_of_stock_product.is_available)
+
+        self.client.force_authenticate(user=None)
+        public_after = self.client.get(reverse('product-list-create'))
+        slugs_after = [p['slug'] for p in public_after.data['results']]
+        self.assertIn(self.approved_product.slug, slugs_after)
+        self.assertNotIn(self.out_of_stock_product.slug, slugs_after)
+
+        # Audit trail captured approve, suspend, reactivate
+        self.assertEqual(
+            self.AdminAuditLog.objects.filter(
+                action__in=['approve_farmer', 'suspend_farmer', 'reactivate_farmer']
+            ).count(),
+            3,
+        )
+
+
+class SecurityAndHistoricalDataRemediationTests(APITestCase):
+    def setUp(self):
+        from django.contrib import admin
+        from django.core.exceptions import PermissionDenied
+        from django.db.models import ProtectedError
+        from django.test import RequestFactory
+        from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+        from orders.models import Order, OrderItem
+        from payments.models import Payment
+        from products.models import Category, Product
+        from reviews.models import ProductReview
+
+        self.admin_site = admin.site
+        self.PermissionDenied = PermissionDenied
+        self.ProtectedError = ProtectedError
+        self.RequestFactory = RequestFactory
+        self.BlacklistedToken = BlacklistedToken
+        self.Order = Order
+        self.OrderItem = OrderItem
+        self.Payment = Payment
+        self.Product = Product
+        self.ProductReview = ProductReview
+
+        self.super_admin = User.objects.create_superuser(
+            username='sec_super',
+            email='sec_super@example.com',
+            password='password123',
+            first_name='Sec',
+            last_name='Super',
+        )
+        self.general_admin = User.objects.create_user(
+            username='sec_gen',
+            email='sec_gen@example.com',
+            password='password123',
+            first_name='Sec',
+            last_name='General',
+            user_type='admin',
+            is_staff=True,
+        )
+        self.customer = User.objects.create_user(
+            username='sec_cust',
+            email='sec_cust@example.com',
+            password='password123',
+            first_name='Sec',
+            last_name='Customer',
+            user_type='customer',
+        )
+        self.farmer = User.objects.create_user(
+            username='sec_farmer',
+            email='sec_farmer@example.com',
+            password='password123',
+            first_name='Sec',
+            last_name='Farmer',
+            user_type='farmer',
+        )
+        FarmerProfile.objects.create(
+            user=self.farmer,
+            farm_name='Protected Farm',
+            location='Harare',
+            description='Safe farming',
+            status='approved',
+        )
+        self.category, _ = Category.objects.get_or_create(
+            slug='vegetables',
+            defaults={'name': 'Vegetables'},
+        )
+        self.product = Product.objects.create(
+            farmer=self.farmer,
+            category=self.category,
+            name='Protected Kale',
+            slug='protected-kale',
+            description='Crisp greens',
+            price='3.00',
+            stock=10,
+        )
+        self.order = Order.objects.create(
+            customer=self.customer,
+            first_name='Sec',
+            last_name='Customer',
+            email=self.customer.email,
+            phone='+263770000010',
+            address='12 Safe Ave',
+            postal_code='00263',
+            city='Harare',
+            total_amount='11.00',
+            status='delivered',
+        )
+        self.order_item = OrderItem.objects.create(
+            order=self.order,
+            product=self.product,
+            price=self.product.price,
+            quantity=2,
+            status='delivered',
+        )
+        self.payment = Payment.objects.create(
+            order=self.order,
+            method='cod',
+            status='completed',
+            amount='11.00',
+        )
+        self.review = ProductReview.objects.create(
+            product=self.product,
+            customer=self.customer,
+            rating=5,
+            title='Fresh kale',
+            comment='Really fresh and tasty',
+            status='approved',
+        )
+
+    def test_suspended_admin_existing_access_and_refresh_tokens_rejected_and_reactivation_works(self):
+        # 1. General Admin signs in and verifies token refresh works while active
+        login_res = self.client.post(
+            reverse('users:login'),
+            {'email': self.general_admin.email, 'password': 'password123'},
+            format='json',
+        )
+        self.assertEqual(login_res.status_code, status.HTTP_200_OK)
+        old_access = login_res.data['access']
+        old_refresh = login_res.data['refresh']
+
+        # 2. Super Admin suspends General Admin
+        self.client.force_authenticate(user=self.super_admin)
+        susp_res = self.client.patch(
+            reverse('users:admin-user-status-update', args=[self.general_admin.pk]),
+            {'is_active': False, 'reason': 'Security test'},
+            format='json',
+        )
+        self.assertEqual(susp_res.status_code, status.HTTP_200_OK)
+        self.assertTrue(self.BlacklistedToken.objects.filter(token__user=self.general_admin).exists())
+
+        # 3. Existing access token rejected (401)
+        self.client.force_authenticate(user=None)
+        acc_res = self.client.get(
+            reverse('users:admin-user-list'),
+            HTTP_AUTHORIZATION=f'Bearer {old_access}',
+        )
+        self.assertEqual(acc_res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # 4. Existing refresh token rejected (401) even via ActiveUserTokenRefreshView
+        ref_res = self.client.post(
+            reverse('users:token_refresh'),
+            {'refresh': old_refresh},
+            format='json',
+        )
+        self.assertEqual(ref_res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # 5. Even if token was not blacklisted explicitly, inactive user check on refresh rejects it
+        self.general_admin.is_active = True
+        self.general_admin.save(update_fields=['is_active'])
+        fresh_login = self.client.post(
+            reverse('users:login'),
+            {'email': self.general_admin.email, 'password': 'password123'},
+            format='json',
+        )
+        self.assertEqual(fresh_login.status_code, status.HTTP_200_OK)
+        fresh_refresh = fresh_login.data['refresh']
+
+        self.general_admin.is_active = False
+        self.general_admin.save(update_fields=['is_active'])
+        ref_res_2 = self.client.post(
+            reverse('users:token_refresh'),
+            {'refresh': fresh_refresh},
+            format='json',
+        )
+        self.assertEqual(ref_res_2.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # 6. Reactivated admin can authenticate and refresh tokens normally
+        self.client.force_authenticate(user=self.super_admin)
+        react_res = self.client.patch(
+            reverse('users:admin-user-status-update', args=[self.general_admin.pk]),
+            {'is_active': True, 'reason': 'Cleared'},
+            format='json',
+        )
+        self.assertEqual(react_res.status_code, status.HTTP_200_OK)
+
+        self.client.force_authenticate(user=None)
+        relogin_res = self.client.post(
+            reverse('users:login'),
+            {'email': self.general_admin.email, 'password': 'password123'},
+            format='json',
+        )
+        self.assertEqual(relogin_res.status_code, status.HTTP_200_OK)
+        ok_refresh = self.client.post(
+            reverse('users:token_refresh'),
+            {'refresh': relogin_res.data['refresh']},
+            format='json',
+        )
+        self.assertEqual(ok_refresh.status_code, status.HTTP_200_OK, ok_refresh.data)
+
+        # 7. Ordinary customer and farmer login + refresh regression
+        for user in (self.customer, self.farmer):
+            res = self.client.post(
+                reverse('users:login'),
+                {'email': user.email, 'password': 'password123'},
+                format='json',
+            )
+            self.assertEqual(res.status_code, status.HTTP_200_OK)
+            ref = self.client.post(
+                reverse('users:token_refresh'),
+                {'refresh': res.data['refresh']},
+                format='json',
+            )
+            self.assertEqual(ref.status_code, status.HTTP_200_OK)
+
+    def test_django_admin_and_api_delete_cannot_destroy_historical_orders_or_reviews(self):
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from users.models import AdminAuditLog
+
+        rf = self.RequestFactory()
+        req = rf.post('/admin/')
+        req.user = self.super_admin
+        setattr(req, 'session', 'session')
+        setattr(req, '_messages', FallbackStorage(req))
+
+        product_admin = self.admin_site._registry[self.Product]
+        user_admin = self.admin_site._registry[User]
+        order_admin = self.admin_site._registry[self.Order]
+        review_admin = self.admin_site._registry[self.ProductReview]
+        payment_admin = self.admin_site._registry[self.Payment]
+
+        # 1. FarmerProfileInline uses 'description' (not stale 'bio') cleanly
+        inlines = user_admin.get_inline_instances(req, self.farmer)
+        farmer_inline = inlines[0]
+        self.assertIn('description', farmer_inline.fields)
+        self.assertNotIn('bio', farmer_inline.fields)
+
+        # 2. Django Admin delete permissions & delete_selected actions disabled on core models
+        for model_admin, obj in (
+            (product_admin, self.product),
+            (user_admin, self.customer),
+            (order_admin, self.order),
+            (review_admin, self.review),
+            (payment_admin, self.payment),
+        ):
+            self.assertFalse(model_admin.has_delete_permission(req, obj))
+            self.assertNotIn('delete_selected', model_admin.get_actions(req))
+            with self.assertRaises(self.PermissionDenied):
+                model_admin.delete_model(req, obj)
+            with self.assertRaises(self.PermissionDenied):
+                model_admin.delete_queryset(req, model_admin.model.objects.filter(pk=obj.pk))
+
+        # 3. Direct ORM delete attempts raise ProtectedError instead of cascading historical orders/reviews
+        with self.assertRaises(self.ProtectedError):
+            self.product.delete()
+        with self.assertRaises(self.ProtectedError):
+            self.customer.delete()
+        with self.assertRaises(self.ProtectedError):
+            self.farmer.delete()
+
+        # 4. Administrative API DELETE user endpoint is blocked cleanly
+        self.client.force_authenticate(user=self.super_admin)
+        del_cust = self.client.delete(reverse('users:admin-user-detail', args=[self.customer.pk]))
+        self.assertEqual(del_cust.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # 5. Safe Django Admin soft-remove bulk action works and preserves OrderItem & ProductReview
+        product_admin.soft_remove_selected_products(
+            req, self.Product.objects.filter(pk=self.product.pk)
+        )
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.moderation_status, 'removed')
+        self.assertTrue(AdminAuditLog.objects.filter(action='remove_product', target_id=self.product.pk).exists())
+
+        # Historical order, item, payment, and review remain completely intact
+        self.assertTrue(self.Order.objects.filter(pk=self.order.pk).exists())
+        self.assertTrue(self.OrderItem.objects.filter(pk=self.order_item.pk).exists())
+        self.assertTrue(self.Payment.objects.filter(pk=self.payment.pk).exists())
+        self.assertTrue(self.ProductReview.objects.filter(pk=self.review.pk).exists())
+
+
+class SettingsConfigurationIsolationTests(APITestCase):
+    """Verify explicit environment loading and isolation across dev and prod settings."""
+
+    @staticmethod
+    def _load_settings_with_env(env_vars):
+        import os
+        import runpy
+        from pathlib import Path
+        from django.conf import settings as django_settings
+
+        settings_path = str(Path(django_settings.BASE_DIR) / 'backend' / 'settings.py')
+        with patch.dict(os.environ, env_vars, clear=True):
+            return runpy.run_path(settings_path)
+
+    def test_development_settings_do_not_load_backend_dotenv_or_enable_tls_and_ssl_together(self):
+        loaded = self._load_settings_with_env(
+            {
+                'SECRET_KEY': 'dev-isolation-key',
+                'DEBUG': 'True',
+                'PASSWORD_RESET_EMAIL_PROVIDER': 'django',
+                'EMAIL_HOST': 'smtp.gmail.com',
+                'EMAIL_PORT': '587',
+                'EMAIL_USE_TLS': 'True',
+            }
+        )
+        self.assertTrue(loaded['DEBUG'])
+        self.assertEqual(loaded['PASSWORD_RESET_EMAIL_PROVIDER'], 'django')
+        self.assertEqual(loaded['EMAIL_HOST'], 'smtp.gmail.com')
+        self.assertEqual(loaded['EMAIL_PORT'], 587)
+        self.assertTrue(loaded['EMAIL_USE_TLS'])
+        self.assertFalse(loaded['EMAIL_USE_SSL'])
+        self.assertFalse(loaded['EMAIL_USE_TLS'] and loaded['EMAIL_USE_SSL'])
+
+    def test_explicit_django_env_file_loads_when_specified_and_rejects_missing_file(self):
+        import os
+        import tempfile
+        from django.core.exceptions import ImproperlyConfigured
+
+        with tempfile.NamedTemporaryFile('w', suffix='.env', delete=False) as tmp:
+            tmp.write(
+                'SECRET_KEY=explicit-file-secret\n'
+                'DEBUG=False\n'
+                'PASSWORD_RESET_EMAIL_PROVIDER=smtp\n'
+                'EMAIL_HOST=smtp.explicit.example\n'
+                'EMAIL_PORT=465\n'
+                'EMAIL_USE_TLS=False\n'
+                'EMAIL_USE_SSL=True\n'
+                'EMAIL_HOST_USER=noreply@explicit.example\n'
+                'EMAIL_HOST_PASSWORD=mock-explicit-pass\n'
+            )
+            tmp_path = tmp.name
+
+        try:
+            loaded = self._load_settings_with_env({'DJANGO_ENV_FILE': tmp_path})
+            self.assertFalse(loaded['DEBUG'])
+            self.assertEqual(loaded['EMAIL_HOST'], 'smtp.explicit.example')
+            self.assertEqual(loaded['EMAIL_PORT'], 465)
+            self.assertTrue(loaded['EMAIL_USE_SSL'])
+            self.assertFalse(loaded['EMAIL_USE_TLS'])
+        finally:
+            os.unlink(tmp_path)
+
+        with self.assertRaises(ImproperlyConfigured):
+            self._load_settings_with_env({'DJANGO_ENV_FILE': '/nonexistent/missing.env'})
+
+    def test_production_settings_use_explicit_env_and_reject_django_provider(self):
+        from django.core.exceptions import ImproperlyConfigured
+
+        loaded = self._load_settings_with_env(
+            {
+                'SECRET_KEY': 'prod-isolation-key',
+                'DEBUG': 'False',
+                'PASSWORD_RESET_EMAIL_PROVIDER': 'smtp',
+                'EMAIL_HOST': 'mails.hpc.ac.zw',
+                'EMAIL_PORT': '465',
+                'EMAIL_USE_TLS': 'False',
+                'EMAIL_USE_SSL': 'True',
+                'EMAIL_HOST_USER': 'noreply@example.com',
+                'EMAIL_HOST_PASSWORD': 'mock-prod-password',
+                'DEFAULT_FROM_EMAIL': 'noreply@example.com',
+            }
+        )
+        self.assertFalse(loaded['DEBUG'])
+        self.assertEqual(loaded['PASSWORD_RESET_EMAIL_PROVIDER'], 'smtp')
+        self.assertEqual(loaded['EMAIL_HOST'], 'mails.hpc.ac.zw')
+        self.assertEqual(loaded['EMAIL_PORT'], 465)
+        self.assertTrue(loaded['EMAIL_USE_SSL'])
+        self.assertFalse(loaded['EMAIL_USE_TLS'])
+
+        with self.assertRaises(ImproperlyConfigured):
+            self._load_settings_with_env(
+                {
+                    'SECRET_KEY': 'prod-isolation-key',
+                    'DEBUG': 'False',
+                    'PASSWORD_RESET_EMAIL_PROVIDER': 'django',
+                }
+            )
+
+    def test_missing_secret_key_does_not_auto_load_backend_dotenv_and_fails_safely(self):
+        from django.core.exceptions import ImproperlyConfigured
+
+        with self.assertRaises(ImproperlyConfigured):
+            self._load_settings_with_env({'DEBUG': 'False'})
+
+    def test_invalid_provider_conflicting_tls_ssl_and_incomplete_production_smtp_fail_safely(self):
+        from django.core.exceptions import ImproperlyConfigured
+
+        with self.assertRaises(ImproperlyConfigured):
+            self._load_settings_with_env(
+                {
+                    'SECRET_KEY': 'test-key',
+                    'DEBUG': 'False',
+                    'PASSWORD_RESET_EMAIL_PROVIDER': 'invalid_provider',
+                }
+            )
+
+        with self.assertRaises(ImproperlyConfigured):
+            self._load_settings_with_env(
+                {
+                    'SECRET_KEY': 'test-key',
+                    'DEBUG': 'False',
+                    'PASSWORD_RESET_EMAIL_PROVIDER': 'smtp',
+                    'EMAIL_USE_TLS': 'True',
+                    'EMAIL_USE_SSL': 'True',
+                }
+            )
+
+        with self.assertRaises(ImproperlyConfigured):
+            self._load_settings_with_env(
+                {
+                    'SECRET_KEY': 'test-key',
+                    'DEBUG': 'False',
+                    'PASSWORD_RESET_EMAIL_PROVIDER': 'smtp',
+                    'EMAIL_HOST': '',
+                    'EMAIL_PORT': '',
+                }
+            )
+
+        with self.assertRaises(ImproperlyConfigured):
+            self._load_settings_with_env(
+                {
+                    'SECRET_KEY': 'test-key',
+                    'DEBUG': 'False',
+                    'PASSWORD_RESET_EMAIL_PROVIDER': 'smtp',
+                    'EMAIL_HOST': 'mails.hpc.ac.zw',
+                    'EMAIL_PORT': '465',
+                    'EMAIL_HOST_USER': 'noreply@example.com',
+                    'EMAIL_HOST_PASSWORD': 'mock-prod-password',
+                    'EMAIL_USE_TLS': 'False',
+                    'EMAIL_USE_SSL': 'False',
+                }
+            )

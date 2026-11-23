@@ -1,0 +1,26 @@
+from django.core.exceptions import PermissionDenied
+
+
+class NoHardDeleteAdminMixin:
+    """
+    Prevent individual and bulk hard deletion in Django Admin so historical
+    orders, order items, reviews, and user references cannot be cascade-deleted.
+    """
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        actions.pop('delete_selected', None)
+        return actions
+
+    def delete_model(self, request, obj):
+        raise PermissionDenied(
+            'Hard deletion is disabled in Django Admin to preserve historical records.'
+        )
+
+    def delete_queryset(self, request, queryset):
+        raise PermissionDenied(
+            'Bulk hard deletion is disabled in Django Admin to preserve historical records.'
+        )

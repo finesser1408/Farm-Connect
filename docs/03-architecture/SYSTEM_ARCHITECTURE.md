@@ -21,7 +21,7 @@ flowchart LR
     BE -->|"PostgreSQL TCP :5432"| DB[("farmconnect-db (postgres:16-alpine)")]
     BE -->|"Media Volume"| Media[("media_data")]
     FE -->|"Read-Only Media Volume"| Media
-    BE -->|"Password Reset (Prod)"| Resend["Resend API"]
+    BE -->|"Password Reset / Mail (Prod)"| ProdMail["Org SMTP (STARTTLS/SSL) or Resend"]
     DevBE["farmconnect-dev-backend (DEBUG=True)"] -->|"Password Reset (Dev)"| Gmail["Gmail SMTP"]
 ```
 
@@ -37,7 +37,7 @@ flowchart LR
 - **Layout Boundaries**:
   - Public/Customer pages render [`Navbar`](../../frontend/src/components/Navbar.tsx) and [`Footer`](../../frontend/src/components/Footer.tsx).
   - Farmer pages render inside [`FarmerLayout`](../../frontend/src/layouts/FarmerLayout.tsx) + [`DashboardSidebar`](../../frontend/src/components/DashboardSidebar.tsx) (`< 768px`: collapsible Radix `Sheet` drawer; `>= 768px`: persistent collapsible sidebar).
-  - Admin pages render inside [`AdminLayout`](../../frontend/src/layouts/AdminLayout.tsx).
+  - Admin pages render inside [`AdminLayout`](../../frontend/src/layouts/AdminLayout.tsx) + [`DashboardSidebar`](../../frontend/src/components/DashboardSidebar.tsx) (`< 768px`: collapsible drawer with mobile Logout and scroll-to-top; `AdminUsers`, `AdminFarmers`, and `AdminProducts` reuse shared components like [`AdminProductManagementPanel`](../../frontend/src/components/admin/AdminProductManagementPanel.tsx) & [`AdminProductFormDialog`](../../frontend/src/components/admin/AdminProductFormDialog.tsx) to adapt cleanly between `< 768px` stacked cards and `>= 768px` tables).
 - **Interactive Category & Product Components**:
   - [`ShopByCategorySection`](../../frontend/src/components/ShopByCategorySection.tsx) + [`CategoryProductPreviewModal`](../../frontend/src/components/CategoryProductPreviewModal.tsx) + [`ProductCard`](../../frontend/src/components/ProductCard.tsx).
 
@@ -48,10 +48,11 @@ flowchart LR
 | App | Responsibility | Key Modules |
 | :--- | :--- | :--- |
 | `backend` | Settings, root URL routing, global exception handling, email service | `settings.py`, `urls.py`, `exceptions.py`, `email_service.py` |
-| `users` | Custom `User`, `FarmerProfile`, `CustomerProfile`, JWT auth, password reset, rate limiting | `models.py`, `serializers.py`, `api_views.py`, `permissions.py`, `throttles.py` |
+| `users` | Custom `User` (`Super Admin` via `is_superuser` / `General Admin` via `user_type='admin'`), `FarmerProfile`, `CustomerProfile`, `AdminAuditLog`, JWT auth, password reset, rate limiting | `models.py`, `serializers.py`, `api_views.py`, `permissions.py`, `throttles.py` |
 | `products` | `Category` (7 approved categories) and `Product` catalog, image validation, location/category filtering | `models.py`, `serializers.py`, `api_views.py`, `migrations/0004_seed_approved_categories.py` |
 | `orders` | `Cart`, `CartItem`, `Order`, `OrderItem`, checkout, and farmer item fulfillment | `models.py`, `serializers.py`, `api_views.py`, `order_views.py` |
 | `payments` | `Payment` model linked 1:1 with `Order` | `models.py`, `admin.py` |
+| `reviews` | `PlatformTestimonial` and `ProductReview` models, anti-abuse validation, moderation workflow | `models.py`, `serializers.py`, `api_views.py`, `admin.py`, `urls.py` |
 
 ---
 
@@ -67,7 +68,8 @@ flowchart LR
 ### REST API Authentication Flow
 - `POST /api/v1/auth/login/` returns `access` (60 min) and `refresh` (1 day) JWTs stored in `localStorage` (`auth_tokens`).
 - Axios request interceptor attaches `Authorization: Bearer <access>`.
-- On `401`, Axios response interceptor calls `POST /api/v1/auth/token/refresh/` and retries the original request; on refresh failure, clears `auth_tokens` and redirects to `/login`.
+- On `401`, Axios response interceptor calls `POST /api/v1/auth/token/refresh/` (`ActiveUserTokenRefreshView`) and retries the original request; on refresh failure, clears `auth_tokens` and redirects to `/login`.
+- Suspending/deactivating a user (`is_active=False`) blacklists all existing `OutstandingToken` records via `revoke_user_refresh_tokens()`, and `ActiveUserTokenRefreshSerializer` rejects refresh exchanges (`401`) for inactive/missing users.
 
 ---
 
@@ -82,9 +84,12 @@ flowchart LR
 ## 7. Security Controls & Trust Boundaries
 
 - **Public vs. Authenticated**: Product browsing and category listing are `IsAuthenticatedOrReadOnly`; cart, checkout, and profile updates require valid JWTs.
-- **Ownership Enforcement**: `update_profile` scopes strictly to `request.user`; `product_detail` (`PUT`/`PATCH`/`DELETE`) checks `product.farmer == request.user` (or admin); `update_order_item_status` filters by `product__farmer=request.user`.
+- **Administrative RBAC & Audit Trail**: [`IsAdmin`](../../backend/users/permissions.py) allows active General Admins and Super Admins (`is_active=True`); [`IsSuperAdmin`](../../backend/users/permissions.py) restricts role assignments (`PATCH /api/v1/auth/admin/users/<pk>/role/`), administrator suspensions, user deletion, and audit log access (`GET /api/v1/auth/admin/audit-logs/`) to active Super Admins (`is_superuser=True`). Self-demotion, self-suspension, modifying Super Admins, and disabling the last active Super Admin are blocked; sensitive actions are recorded in immutable `AdminAuditLog` entries without secrets.
+- **Ownership Enforcement**: `update_profile` scopes strictly to `request.user` and rejects privilege fields; `product_detail` (`PUT`/`PATCH`/`DELETE`) checks `product.farmer == request.user` (or admin); `update_order_item_status` filters by `product__farmer=request.user`.
+- **Historical Data & Deletion Protection**: `Order.customer`, `OrderItem.product`, `Product.farmer`, `ProductReview.product`, and `ProductReview.customer` use `on_delete=PROTECT` to prevent ORM cascades. `NoHardDeleteAdminMixin` ([`backend/admin_mixins.py`](../../backend/backend/admin_mixins.py)) disables single and bulk hard deletion across `CustomUserAdmin`, `FarmerProfileAdmin`, `ProductAdmin`, `OrderAdmin`, `OrderItemAdmin`, `PaymentAdmin`, `PlatformTestimonialAdmin`, and `ProductReviewAdmin`; `DELETE /api/v1/auth/admin/users/<pk>/` rejects destructive user deletion (`400`, directing callers to `/status/` suspension); and `Product` `DELETE` performs soft removal (`moderation_status='removed'`). Only direct database superuser SQL or explicit shell deletion of child rows first remains a privileged backdoor.
+- **Farmer & Product Moderation Enforcement**: [`users/permissions.py`](../../backend/users/permissions.py) (`is_approved_farmer_user`, `is_product_farmer_purchasable`, `is_product_publicly_visible`, `public_purchasable_product_q`) enforces both `FarmerProfile.status == 'approved'` (separate from `User.is_active`) and `Product.moderation_status == 'active'` across public catalog listings, direct product detail access, cart additions/updates, and checkout validation while preserving historical `OrderItem` and `ProductReview` rows via soft removal (`moderation_status='removed'`). All farmer and product moderation mutations log to `AdminAuditLog`.
 - **Location Privacy**: Only public town/city/district strings (`FarmerProfile.location`) are exposed on products. Approximate distance calculation in [`zimbabwe-locations.ts`](../../frontend/src/lib/zimbabwe-locations.ts) runs client-side using static town centroids; no GPS or street addresses are collected or exposed.
-- **Upload Validation**: `ProductImageField` enforces `<= 5 MB`, `.jpg`/`.jpeg`/`.png`/`.webp`, and `Pillow` header verification.
+- **Upload Validation**: Both `nginx-proxy.conf` and `nginx-dev.conf` allow `client_max_body_size 6M;` on `/api/` for multipart overhead, while `ProductImageField` strictly enforces `<= 5 MB`, `.jpg`/`.jpeg`/`.png`/`.webp`, and `Pillow` header verification.
 
 ---
 

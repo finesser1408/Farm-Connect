@@ -26,7 +26,13 @@ class Category(models.Model):
         return self.name
 
 class Product(models.Model):
-    farmer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='products')
+    MODERATION_STATUS_CHOICES = (
+        ('active', 'Active'),
+        ('hidden', 'Hidden'),
+        ('removed', 'Removed'),
+    )
+
+    farmer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='products')
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='products')
     name = models.CharField(max_length=255)
     slug = models.SlugField(unique=True)
@@ -35,6 +41,21 @@ class Product(models.Model):
     stock = models.PositiveIntegerField(default=0)
     image = models.ImageField(upload_to='products/', blank=True, null=True)
     is_available = models.BooleanField(default=True)
+    moderation_status = models.CharField(
+        max_length=20,
+        choices=MODERATION_STATUS_CHOICES,
+        default='active',
+        db_index=True,
+    )
+    moderated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='moderated_products',
+    )
+    moderated_at = models.DateTimeField(null=True, blank=True)
+    moderation_reason = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

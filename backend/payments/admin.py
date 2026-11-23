@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from backend.admin_mixins import NoHardDeleteAdminMixin
 from .models import Payment
 
 
@@ -8,7 +9,7 @@ from .models import Payment
 # ──────────────────────────────────────────────
 
 @admin.register(Payment)
-class PaymentAdmin(admin.ModelAdmin):
+class PaymentAdmin(NoHardDeleteAdminMixin, admin.ModelAdmin):
     list_display = (
         'id', 'order_link', 'method_badge', 'status_badge',
         'formatted_amount', 'transaction_id', 'created_at',

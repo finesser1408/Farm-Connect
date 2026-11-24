@@ -740,3 +740,65 @@ def password_reset_confirm(request, uidb64, token):
     user.set_password(serializer.validated_data['new_password'])
     user.save(update_fields=['password'])
     return Response({'message': 'Password reset successful.'}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdmin])
+def admin_dashboard_stats(request):
+    """
+    Return real database aggregates for the Admin Dashboard.
+    - Never reports simulated checkout transactions as verified revenue.
+    - Exposes aggregate counts only (zero personal information).
+    """
+    from datetime import datetime, timezone as dt_timezone
+    from django.db.models.functions import TruncMonth
+    from orders.models import Order
+    from products.models import Product
+
+    now = timezone.now()
+    current_year = now.year
+    current_month = now.month
+
+    month_slots = []
+    for offset in range(5, -1, -1):
+        total_months = (current_year * 12 + (current_month - 1)) - offset
+        slot_year, slot_month_zero = divmod(total_months, 12)
+        slot_month = slot_month_zero + 1
+        slot_dt = datetime(slot_year, slot_month, 1, tzinfo=dt_timezone.utc)
+        month_slots.append((f"{slot_year:04d}-{slot_month:02d}", slot_dt.strftime("%b %Y"), slot_dt))
+
+    window_start = month_slots[0][2]
+    grouped_orders = (
+        Order.objects.exclude(status='cancelled')
+        .filter(created_at__gte=window_start)
+        .annotate(month_bucket=TruncMonth('created_at'))
+        .values('month_bucket')
+        .annotate(orders=Count('id'))
+    )
+    counts_by_month = {
+        row['month_bucket'].strftime("%Y-%m"): row['orders']
+        for row in grouped_orders
+        if row.get('month_bucket') is not None
+    }
+
+    monthly_activity = [
+        {
+            'month': label,
+            'month_key': key,
+            'orders': counts_by_month.get(key, 0),
+        }
+        for key, label, _ in month_slots
+    ]
+
+    return Response(
+        {
+            'total_users': User.objects.count(),
+            'total_farmers': FarmerProfile.objects.count(),
+            'total_products': Product.objects.exclude(moderation_status='removed').count(),
+            'total_orders': Order.objects.exclude(status='cancelled').count(),
+            'verified_payments_enabled': False,
+            'verified_sales_total': None,
+            'monthly_activity': monthly_activity,
+        },
+        status=status.HTTP_200_OK,
+    )

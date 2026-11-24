@@ -1621,3 +1621,171 @@ class SettingsConfigurationIsolationTests(APITestCase):
                     'EMAIL_USE_SSL': 'False',
                 }
             )
+
+
+
+class AdminDashboardStatsTests(APITestCase):
+    """Section 4.19: Backend tests for GET /api/v1/auth/admin/stats/."""
+
+    def setUp(self):
+        self.url = reverse('users:admin-dashboard-stats')
+        self.super_admin = User.objects.create_superuser(
+            username='stats_super',
+            email='stats_super@example.com',
+            password='password123',
+            user_type='admin',
+            first_name='Super',
+            last_name='Boss',
+        )
+        self.general_admin = User.objects.create_user(
+            username='stats_gen',
+            email='stats_gen@example.com',
+            password='password123',
+            user_type='admin',
+            is_staff=True,
+            first_name='Gen',
+            last_name='Admin',
+        )
+
+    def test_dashboard_stats_zero_records_state(self):
+        self.client.force_authenticate(user=self.general_admin)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total_users'], 2)
+        self.assertEqual(response.data['total_farmers'], 0)
+        self.assertEqual(response.data['total_products'], 0)
+        self.assertEqual(response.data['total_orders'], 0)
+        self.assertFalse(response.data['verified_payments_enabled'])
+        self.assertIsNone(response.data['verified_sales_total'])
+        self.assertEqual(len(response.data['monthly_activity']), 6)
+        self.assertTrue(all(item['orders'] == 0 for item in response.data['monthly_activity']))
+
+    def test_dashboard_stats_returns_real_aggregates_and_excludes_removed_and_simulated(self):
+        from orders.models import Order, OrderItem
+        from payments.models import Payment
+        from products.models import Category, Product
+
+        customer = User.objects.create_user(
+            username='stats_cust',
+            email='stats_cust@example.com',
+            password='password123',
+            user_type='customer',
+        )
+        farmer = User.objects.create_user(
+            username='stats_farmer',
+            email='stats_farmer@example.com',
+            password='password123',
+            user_type='farmer',
+        )
+        FarmerProfile.objects.create(
+            user=farmer,
+            farm_name='Stats Farm',
+            location='Mutare',
+            status='approved',
+        )
+        category, _ = Category.objects.get_or_create(slug='vegetables', defaults={'name': 'Vegetables'})
+        active_prod = Product.objects.create(
+            farmer=farmer,
+            category=category,
+            name='Active Carrots',
+            slug='active-carrots',
+            description='Fresh',
+            price='4.00',
+            stock=20,
+            moderation_status='active',
+        )
+        Product.objects.create(
+            farmer=farmer,
+            category=category,
+            name='Hidden Onions',
+            slug='hidden-onions',
+            description='Hidden',
+            price='3.00',
+            stock=10,
+            moderation_status='hidden',
+        )
+        Product.objects.create(
+            farmer=farmer,
+            category=category,
+            name='Removed Cabbage',
+            slug='removed-cabbage',
+            description='Removed',
+            price='2.00',
+            stock=0,
+            is_available=False,
+            moderation_status='removed',
+        )
+
+        paid_order = Order.objects.create(
+            customer=customer,
+            first_name='Buyer',
+            last_name='One',
+            email=customer.email,
+            phone='+263771112222',
+            address='10 Market Rd',
+            postal_code='00263',
+            city='Harare',
+            total_amount='13.00',
+            status='paid',
+        )
+        OrderItem.objects.create(order=paid_order, product=active_prod, price='4.00', quantity=2)
+        Payment.objects.create(
+            order=paid_order,
+            method='mobile_money',
+            status='completed',
+            amount='13.00',
+            transaction_id='SIMULATED-ECOCASH-ABCDEF123456',
+        )
+
+        Order.objects.create(
+            customer=customer,
+            first_name='Buyer',
+            last_name='One',
+            email=customer.email,
+            phone='+263771112222',
+            address='10 Market Rd',
+            postal_code='00263',
+            city='Harare',
+            total_amount='9.00',
+            status='cancelled',
+        )
+
+        for admin_user in (self.general_admin, self.super_admin):
+            self.client.force_authenticate(user=admin_user)
+            res = self.client.get(self.url)
+            self.assertEqual(res.status_code, status.HTTP_200_OK)
+            self.assertEqual(res.data['total_users'], 4)
+            self.assertEqual(res.data['total_farmers'], 1)
+            self.assertEqual(res.data['total_products'], 2)  # excludes removed
+            self.assertEqual(res.data['total_orders'], 1)  # excludes cancelled
+            self.assertFalse(res.data['verified_payments_enabled'])
+            self.assertIsNone(res.data['verified_sales_total'])
+            self.assertEqual(len(res.data['monthly_activity']), 6)
+            self.assertEqual(res.data['monthly_activity'][-1]['orders'], 1)
+            raw = res.content.decode()
+            self.assertNotIn('stats_cust@example.com', raw)
+            self.assertNotIn('+263771112222', raw)
+
+    def test_dashboard_stats_denies_unauthorized_and_suspended_users(self):
+        customer = User.objects.create_user(
+            username='unauth_cust',
+            email='unauth_cust@example.com',
+            password='password123',
+            user_type='customer',
+        )
+        farmer = User.objects.create_user(
+            username='unauth_farmer',
+            email='unauth_farmer@example.com',
+            password='password123',
+            user_type='farmer',
+        )
+        for user in (None, customer, farmer):
+            self.client.force_authenticate(user=user)
+            res = self.client.get(self.url)
+            self.assertIn(res.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+
+        self.general_admin.is_active = False
+        self.general_admin.save(update_fields=['is_active'])
+        self.client.force_authenticate(user=self.general_admin)
+        res = self.client.get(self.url)
+        self.assertIn(res.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))

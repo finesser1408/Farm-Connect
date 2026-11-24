@@ -1,13 +1,13 @@
 # Agent Handover — FarmConnect
 
-**Last Updated**: 2026-11-24 (Section 4.16 — Admin Reviews & Testimonials Moderation)
+**Last Updated**: 2026-11-24 (Section 4.19 — Admin Dashboard Improvements & Responsive Orders)
 
 ## 1. Current Verified Project State
 
-- **Active Branch**: `kudzai` (HEAD `cd4d1d24d869c3e8e0a7d494dfb91d91722bde61`, synced with `origin/kudzai`; Section 4.16 changes are currently uncommitted in the working tree awaiting review).
-- **Production (`farmconnect.hpc.ac.zw`)**: Deployed at commit `cd4d1d2` (`Section 4.14` completed `2026-11-23`); untouched during Section 4.16 development.
-- **Development (`farmconnect-dev`)**: Isolated `dev-backend` rebuilt and verified (`98/98` backend tests, `0` migration changes); frontend verified on Node 22 (`65/65` Vitest tests, `tsc --noEmit`, `vite build`).
-- **Database Migrations**: Clean (`makemigrations --check --dry-run` reports `No changes detected`; Section 4.16 required no new migrations).
+- **Active Branch**: `kudzai` (HEAD `c824133615e3dc490f5261b347f770c3b9c1d24d`, synced with `origin/kudzai`; Section 4.19 changes are currently uncommitted in the working tree awaiting review).
+- **Production (`farmconnect.hpc.ac.zw`)**: Deployed at commit `c824133` (`Section 4.18` completed `2026-11-24`); untouched during Section 4.19 development.
+- **Development (`farmconnect-dev`)**: Isolated `dev-backend` rebuilt and verified (`101/101` backend tests, `0` migration changes); frontend verified on Node 22 (`71/71` Vitest tests across `15` files, `tsc --noEmit`, `vite build`).
+- **Database Migrations**: Clean (`makemigrations --check --dry-run` reports `No changes detected`; Section 4.19 required no new migrations).
 
 ## 2. Work Completed in Recent Sessions
 
@@ -52,7 +52,12 @@
 11. **Section 4.16 — Admin Reviews & Testimonials Moderation** (`2026-11-24`, dev only):
     - Extended existing `IsAdmin`-protected `/api/v1/reviews/admin/products/[<pk>/]` and `/api/v1/reviews/admin/testimonials/[<pk>/]` endpoints with `AdminProductReviewSerializer` / `AdminPlatformTestimonialSerializer` (adding admin-only customer name/email, product name/slug, and `moderated_by_email` while keeping public serializers free of customer emails), backward-compatible `AdminPagination` (plain array when `page`/`page_size` omitted; paginated envelope when supplied), strict status validation (`pending`/`approved`/`rejected` filter; `approved`/`rejected` PATCH transitions rejecting no-op reapplications), single-record `GET <pk>`, and atomic `AdminAuditLog` recording.
     - Added `Reviews & Testimonials` navigation link in `AdminLayout.tsx`, `/admin/reviews` route in `App.tsx`, admin review service methods in `admin-service.ts`, and `AdminReviews.tsx` with Product Reviews & Platform Testimonials tabs, Pending/Approved/Rejected filters, search, pagination, responsive mobile cards & desktop tables, confirmation dialogs with optional audit reason, and toast notifications.
-    - Verified with `98/98` backend tests (`12` new tests in `AdminReviewModerationTests`), `makemigrations --check --dry-run` (`No changes detected`), `14/14` Vitest files / `65/65` tests (`6` new tests in `admin-reviews.test.tsx`), `npx tsc --noEmit`, and `vite build` (`9.39s`).
+    - Verified with `98/98` backend tests (`12` new tests in `AdminReviewModerationTests`), `makemigrations --check --dry-run` (`No changes detected`), `14/14` Vitest files / `65/65` tests (`6` new tests in `admin-reviews.test.tsx`), `npx tsc --noEmit`, and `vite build` (`9.39s`). Deployed to `farmconnect.hpc.ac.zw` at commit `c824133` (`Section 4.18`).
+12. **Section 4.19 — Admin Dashboard Improvements & Responsive Orders** (`2026-11-24`, dev only):
+    - Added `IsAdmin`-protected `GET /api/v1/auth/admin/stats/` returning real database counts (`total_users`, `total_farmers`, `total_products` excluding removed, `total_orders` excluding cancelled), `verified_payments_enabled=False`, `verified_sales_total=None` (preventing simulated checkouts from being reported as actual revenue), and 6-month `monthly_activity` order counts with zero PII exposure.
+    - Updated `AdminDashboard.tsx` to fetch live statistics via `adminService.getDashboardStats()`, render `"Total Sales (Verified)"` as `"Not available"` with caption `"Payment verification not yet enabled"`, display loading/error-retry/zero-record states, and remove the decorative `Block`, `Unblock`, `Verify`, and `Reject` demo buttons and their local state.
+    - Rebuilt `AdminOrders.tsx` (read-only) with search and status filtering, loading/error-retry/empty states, `md:hidden` mobile cards (`< 768px`), and a `hidden overflow-x-auto md:block` desktop table grouping all product line items under their parent order so `order.total_amount` is never repeated per item and simulated payment methods are clearly labeled.
+    - Verified with `101/101` backend tests (`3` new in `AdminDashboardStatsTests`), `15/15` Vitest files / `71/71` tests (`6` new in `admin-dashboard-orders.test.tsx`), `npx tsc --noEmit`, and `vite build` (`9.84s`).
 
 ## 3. Work In Progress / Outstanding Items
 

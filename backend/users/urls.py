@@ -15,6 +15,7 @@ urlpatterns = [
     path('profile/update/', api_views.update_profile, name='update-profile'),
     
     # Admin User Management & Audit Trail
+    path('admin/stats/', api_views.admin_dashboard_stats, name='admin-dashboard-stats'),
     path('admin/users/', api_views.admin_user_list, name='admin-user-list'),
     path('admin/users/<int:pk>/', api_views.admin_user_detail, name='admin-user-detail'),
     path('admin/users/<int:pk>/role/', api_views.admin_user_role_update, name='admin-user-role-update'),

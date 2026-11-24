@@ -109,6 +109,22 @@ export interface AdminModerationQueryParams {
   status?: ModerationStatus;
 }
 
+export interface AdminMonthlyOrderActivity {
+  month: string;
+  month_key: string;
+  orders: number;
+}
+
+export interface AdminDashboardStats {
+  total_users: number;
+  total_farmers: number;
+  total_products: number;
+  total_orders: number;
+  verified_payments_enabled: boolean;
+  verified_sales_total: string | null;
+  monthly_activity: AdminMonthlyOrderActivity[];
+}
+
 async function getPaginatedModerationList<T>(url: string, params?: AdminModerationQueryParams) {
   const queryParams = { page: 1, page_size: 12, ...params };
   const response = await apiClient.get<PaginatedResponse<T> | T[]>(url, { params: queryParams });
@@ -120,6 +136,11 @@ async function getPaginatedModerationList<T>(url: string, params?: AdminModerati
 }
 
 export const adminService = {
+  getDashboardStats: async () => {
+    const response = await apiClient.get<AdminDashboardStats>("/auth/admin/stats/");
+    return response.data;
+  },
+
   getUsers: async (params?: AdminUserQueryParams) => {
     const queryParams = { page: 1, page_size: 12, ...params };
     const response = await apiClient.get<PaginatedResponse<AdminUser> | AdminUser[]>(

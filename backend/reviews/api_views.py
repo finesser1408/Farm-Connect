@@ -1,4 +1,5 @@
-from django.db.models import Avg, Count
+from django.db import transaction
+from django.db.models import Avg, Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import permissions, status
@@ -6,9 +7,14 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from products.models import Product
+from users.api_views import AdminPagination
+from users.models import AdminAuditLog
 from users.permissions import IsAdmin, IsCustomer
 from .models import PlatformTestimonial, ProductReview
 from .serializers import (
+    AdminModerationSerializer,
+    AdminPlatformTestimonialSerializer,
+    AdminProductReviewSerializer,
     PlatformTestimonialCustomerSerializer,
     PlatformTestimonialPublicSerializer,
     ProductReviewCustomerSerializer,
@@ -191,58 +197,180 @@ def my_product_review(request, slug):
 
 
 # ── Admin Moderation Endpoints ─────────────────────────
+#
+# Backward compatibility: when neither ``page`` nor ``page_size`` is supplied the
+# list endpoints keep returning a plain JSON array (legacy contract). Supplying
+# either parameter returns the standard paginated envelope
+# ``{count, next, previous, results}`` used by the other admin list endpoints.
+
+MODERATION_STATUSES = {'pending', 'approved', 'rejected'}
+
+
+def _invalid_status_filter_response(status_filter):
+    return Response(
+        {'detail': f'Invalid status filter "{status_filter}". Use pending, approved, or rejected.'},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+def _list_response(request, queryset, serializer_class):
+    if 'page' in request.query_params or 'page_size' in request.query_params:
+        paginator = AdminPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        serializer = serializer_class(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+    serializer = serializer_class(queryset, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+def _moderate_submission(request, *, model, pk, serializer_class, target_type, describe):
+    """Apply an approve/reject decision atomically and record it in AdminAuditLog."""
+    decision = AdminModerationSerializer(data=request.data)
+    if not decision.is_valid():
+        return Response(decision.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    new_status = decision.validated_data['status']
+    reason = decision.validated_data.get('reason', '').strip()
+
+    with transaction.atomic():
+        submission = get_object_or_404(model.objects.select_for_update(), pk=pk)
+        previous_status = submission.status
+        if previous_status == new_status:
+            return Response(
+                {'detail': f'Submission is already {new_status}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        submission.status = new_status
+        submission.moderated_by = request.user
+        submission.moderated_at = timezone.now()
+        submission.save(update_fields=['status', 'moderated_by', 'moderated_at', 'updated_at'])
+
+        target_repr, extra_details = describe(submission)
+        AdminAuditLog.log(
+            actor=request.user,
+            action=f"{'approve' if new_status == 'approved' else 'reject'}_{target_type}",
+            target_type=target_type,
+            target_id=submission.pk,
+            target_repr=target_repr,
+            details={
+                'previous_status': previous_status,
+                'new_status': new_status,
+                'moderated_at': submission.moderated_at.isoformat(),
+                **extra_details,
+                **({'reason': reason} if reason else {}),
+            },
+        )
+
+    submission = model.objects.select_related('customer', 'moderated_by').get(pk=submission.pk)
+    return Response(serializer_class(submission).data, status=status.HTTP_200_OK)
+
+
+def _describe_testimonial(testimonial):
+    return (
+        f"Testimonial #{testimonial.pk} ({testimonial.rating}★)",
+        {'customer_id': testimonial.customer_id},
+    )
+
+
+def _describe_product_review(review):
+    return (
+        f"Review #{review.pk} on {review.product.name}"[:255],
+        {
+            'customer_id': review.customer_id,
+            'product_id': review.product_id,
+            'product_slug': review.product.slug,
+        },
+    )
+
 
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAdmin])
 def admin_testimonials_moderate(request, pk=None):
-    """Admin endpoint to list all testimonials or moderate a specific one."""
+    """
+    GET  /admin/testimonials/          list (filters: status, search; optional pagination)
+    GET  /admin/testimonials/<pk>/     retrieve one testimonial
+    PATCH /admin/testimonials/<pk>/    {"status": "approved"|"rejected", "reason"?: str}
+    """
     if request.method == 'GET':
-        status_filter = request.query_params.get('status')
-        queryset = PlatformTestimonial.objects.select_related('customer').all()
+        if pk is not None:
+            testimonial = get_object_or_404(
+                PlatformTestimonial.objects.select_related('customer', 'moderated_by'), pk=pk,
+            )
+            return Response(AdminPlatformTestimonialSerializer(testimonial).data, status=status.HTTP_200_OK)
+
+        queryset = PlatformTestimonial.objects.select_related('customer', 'moderated_by').order_by('-created_at')
+        status_filter = (request.query_params.get('status') or '').strip().lower()
         if status_filter:
+            if status_filter not in MODERATION_STATUSES:
+                return _invalid_status_filter_response(status_filter)
             queryset = queryset.filter(status=status_filter)
-        serializer = PlatformTestimonialCustomerSerializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
-    # PATCH moderate
-    testimonial = get_object_or_404(PlatformTestimonial, pk=pk)
-    new_status = request.data.get('status')
-    if new_status not in ['approved', 'rejected', 'pending']:
-        return Response({'detail': 'Invalid status.'}, status=status.HTTP_400_BAD_REQUEST)
+        search = (request.query_params.get('search') or '').strip()
+        if search:
+            queryset = queryset.filter(
+                Q(customer__email__icontains=search)
+                | Q(customer__first_name__icontains=search)
+                | Q(customer__last_name__icontains=search)
+                | Q(display_name__icontains=search)
+                | Q(comment__icontains=search)
+            )
+        return _list_response(request, queryset, AdminPlatformTestimonialSerializer)
 
-    testimonial.status = new_status
-    testimonial.moderated_by = request.user
-    testimonial.moderated_at = timezone.now()
-    testimonial.save()
-    return Response(
-        PlatformTestimonialCustomerSerializer(testimonial).data,
-        status=status.HTTP_200_OK,
+    if pk is None:
+        return Response({'detail': 'Method "PATCH" not allowed.'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    return _moderate_submission(
+        request,
+        model=PlatformTestimonial,
+        pk=pk,
+        serializer_class=AdminPlatformTestimonialSerializer,
+        target_type='platform_testimonial',
+        describe=_describe_testimonial,
     )
 
 
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAdmin])
 def admin_product_reviews_moderate(request, pk=None):
-    """Admin endpoint to list all product reviews or moderate a specific one."""
+    """
+    GET  /admin/products/          list (filters: status, search; optional pagination)
+    GET  /admin/products/<pk>/     retrieve one product review
+    PATCH /admin/products/<pk>/    {"status": "approved"|"rejected", "reason"?: str}
+    """
+    base_qs = ProductReview.objects.select_related('product', 'customer', 'moderated_by')
     if request.method == 'GET':
-        status_filter = request.query_params.get('status')
-        queryset = ProductReview.objects.select_related('product', 'customer').all()
+        if pk is not None:
+            review = get_object_or_404(base_qs, pk=pk)
+            return Response(AdminProductReviewSerializer(review).data, status=status.HTTP_200_OK)
+
+        queryset = base_qs.order_by('-created_at')
+        status_filter = (request.query_params.get('status') or '').strip().lower()
         if status_filter:
+            if status_filter not in MODERATION_STATUSES:
+                return _invalid_status_filter_response(status_filter)
             queryset = queryset.filter(status=status_filter)
-        serializer = ProductReviewCustomerSerializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
-    # PATCH moderate
-    review = get_object_or_404(ProductReview, pk=pk)
-    new_status = request.data.get('status')
-    if new_status not in ['approved', 'rejected', 'pending']:
-        return Response({'detail': 'Invalid status.'}, status=status.HTTP_400_BAD_REQUEST)
+        search = (request.query_params.get('search') or '').strip()
+        if search:
+            queryset = queryset.filter(
+                Q(customer__email__icontains=search)
+                | Q(customer__first_name__icontains=search)
+                | Q(customer__last_name__icontains=search)
+                | Q(product__name__icontains=search)
+                | Q(title__icontains=search)
+                | Q(comment__icontains=search)
+            )
+        return _list_response(request, queryset, AdminProductReviewSerializer)
 
-    review.status = new_status
-    review.moderated_by = request.user
-    review.moderated_at = timezone.now()
-    review.save()
-    return Response(
-        ProductReviewCustomerSerializer(review).data,
-        status=status.HTTP_200_OK,
+    if pk is None:
+        return Response({'detail': 'Method "PATCH" not allowed.'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    return _moderate_submission(
+        request,
+        model=ProductReview,
+        pk=pk,
+        serializer_class=AdminProductReviewSerializer,
+        target_type='product_review',
+        describe=_describe_product_review,
     )

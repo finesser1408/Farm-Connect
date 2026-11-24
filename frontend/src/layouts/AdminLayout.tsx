@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import DashboardSidebar from "@/components/DashboardSidebar";
-import { LayoutDashboard, Users, Sprout, Package, ShoppingCart, BarChart3, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, Sprout, Package, MessageSquare, ShoppingCart, BarChart3, Settings, LogOut } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +11,7 @@ const adminMenu = [
   { title: "Users", url: "/admin/users", icon: Users },
   { title: "Farmers", url: "/admin/farmers", icon: Sprout },
   { title: "Products", url: "/admin/products", icon: Package },
+  { title: "Reviews & Testimonials", url: "/admin/reviews", icon: MessageSquare },
   { title: "Orders", url: "/admin/orders", icon: ShoppingCart },
   { title: "Reports", url: "/admin/reports", icon: BarChart3 },
   { title: "Settings", url: "/admin/settings", icon: Settings },

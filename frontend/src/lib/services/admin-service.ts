@@ -68,6 +68,57 @@ export interface AdminFarmerCreateInput {
   description?: string;
 }
 
+export type ModerationStatus = "pending" | "approved" | "rejected";
+export type ModerationDecision = "approved" | "rejected";
+
+interface AdminModerationBase {
+  id: number;
+  customer_id: number;
+  customer_email: string;
+  customer_name: string;
+  rating: number;
+  comment: string;
+  status: ModerationStatus;
+  moderated_by: number | null;
+  moderated_by_email: string | null;
+  moderated_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminProductReview extends AdminModerationBase {
+  product: number;
+  product_name: string;
+  product_slug: string;
+  title: string;
+  verified_purchase: boolean;
+}
+
+export interface AdminPlatformTestimonial extends AdminModerationBase {
+  effective_display_name: string;
+  display_name: string;
+  role_or_title: string;
+  consent_public: boolean;
+  is_verified_buyer: boolean;
+}
+
+export interface AdminModerationQueryParams {
+  page?: number;
+  page_size?: number;
+  search?: string;
+  status?: ModerationStatus;
+}
+
+async function getPaginatedModerationList<T>(url: string, params?: AdminModerationQueryParams) {
+  const queryParams = { page: 1, page_size: 12, ...params };
+  const response = await apiClient.get<PaginatedResponse<T> | T[]>(url, { params: queryParams });
+  const data = response.data;
+  if (Array.isArray(data)) {
+    return { count: data.length, next: null, previous: null, results: data } satisfies PaginatedResponse<T>;
+  }
+  return data;
+}
+
 export const adminService = {
   getUsers: async (params?: AdminUserQueryParams) => {
     const queryParams = { page: 1, page_size: 12, ...params };
@@ -137,6 +188,28 @@ export const adminService = {
     const response = await apiClient.patch<AdminFarmer>(
       `/auth/admin/farmers/${farmerUserId}/reactivate/`,
       { reason: reason?.trim() || "" },
+    );
+    return response.data;
+  },
+
+  getProductReviews: (params?: AdminModerationQueryParams) =>
+    getPaginatedModerationList<AdminProductReview>("/reviews/admin/products/", params),
+
+  moderateProductReview: async (reviewId: number, status: ModerationDecision, reason?: string) => {
+    const response = await apiClient.patch<AdminProductReview>(`/reviews/admin/products/${reviewId}/`, {
+      status,
+      reason: reason?.trim() || "",
+    });
+    return response.data;
+  },
+
+  getTestimonials: (params?: AdminModerationQueryParams) =>
+    getPaginatedModerationList<AdminPlatformTestimonial>("/reviews/admin/testimonials/", params),
+
+  moderateTestimonial: async (testimonialId: number, status: ModerationDecision, reason?: string) => {
+    const response = await apiClient.patch<AdminPlatformTestimonial>(
+      `/reviews/admin/testimonials/${testimonialId}/`,
+      { status, reason: reason?.trim() || "" },
     );
     return response.data;
   },

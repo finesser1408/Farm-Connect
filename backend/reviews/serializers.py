@@ -88,6 +88,84 @@ class ProductReviewPublicSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class _AdminCustomerFieldsMixin(serializers.Serializer):
+    """Customer identity fields exposed ONLY through IsAdmin-protected endpoints."""
+    customer_id = serializers.IntegerField(source='customer.id', read_only=True)
+    customer_email = serializers.EmailField(source='customer.email', read_only=True)
+    customer_name = serializers.SerializerMethodField()
+    moderated_by_email = serializers.SerializerMethodField()
+
+    def get_customer_name(self, obj):
+        full_name = f"{obj.customer.first_name or ''} {obj.customer.last_name or ''}".strip()
+        return full_name or obj.customer.username or obj.customer.email
+
+    def get_moderated_by_email(self, obj):
+        return obj.moderated_by.email if obj.moderated_by_id else None
+
+
+class AdminPlatformTestimonialSerializer(_AdminCustomerFieldsMixin, serializers.ModelSerializer):
+    """Read-only admin moderation view of a platform testimonial."""
+    effective_display_name = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = PlatformTestimonial
+        fields = [
+            'id',
+            'customer_id',
+            'customer_email',
+            'customer_name',
+            'effective_display_name',
+            'display_name',
+            'role_or_title',
+            'rating',
+            'comment',
+            'consent_public',
+            'status',
+            'is_verified_buyer',
+            'moderated_by',
+            'moderated_by_email',
+            'moderated_at',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
+
+
+class AdminProductReviewSerializer(_AdminCustomerFieldsMixin, serializers.ModelSerializer):
+    """Read-only admin moderation view of a product review."""
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_slug = serializers.CharField(source='product.slug', read_only=True)
+
+    class Meta:
+        model = ProductReview
+        fields = [
+            'id',
+            'product',
+            'product_name',
+            'product_slug',
+            'customer_id',
+            'customer_email',
+            'customer_name',
+            'rating',
+            'title',
+            'comment',
+            'status',
+            'verified_purchase',
+            'moderated_by',
+            'moderated_by_email',
+            'moderated_at',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
+
+
+class AdminModerationSerializer(serializers.Serializer):
+    """Validates an admin moderation decision."""
+    status = serializers.ChoiceField(choices=('approved', 'rejected'))
+    reason = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+
+
 class ProductReviewCustomerSerializer(serializers.ModelSerializer):
     title = serializers.CharField(
         max_length=120,

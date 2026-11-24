@@ -1,14 +1,13 @@
 # Agent Handover — FarmConnect
 
-**Last Updated**: 2026-11-23 (Organizational SMTP Support)
+**Last Updated**: 2026-11-24 (Section 4.16 — Admin Reviews & Testimonials Moderation)
 
 ## 1. Current Verified Project State
 
-- **Active Branch**: `kudzai` (up to date with `origin/kudzai` at commit `f23d855`).
-- **Working Tree**: Clean prior to creating this documentation system (`AGENTS.md` and `docs/`).
-- **Production (`farmconnect.hpc.ac.zw`)**: `farmconnect-backend`, `farmconnect-frontend`, `farmconnect-nginx`, and `farmconnect-db` are running and serving `200` on `/` and `/api/v1/products/`.
-- **Development (`127.0.0.1:18080`)**: `farmconnect-dev-backend`, `farmconnect-dev-frontend`, `farmconnect-dev-gateway`, and `farmconnect-dev-db` are running.
-- **Database Migrations**: Clean (`makemigrations --check --dry-run` reports `No changes detected`).
+- **Active Branch**: `kudzai` (HEAD `cd4d1d24d869c3e8e0a7d494dfb91d91722bde61`, synced with `origin/kudzai`; Section 4.16 changes are currently uncommitted in the working tree awaiting review).
+- **Production (`farmconnect.hpc.ac.zw`)**: Deployed at commit `cd4d1d2` (`Section 4.14` completed `2026-11-23`); untouched during Section 4.16 development.
+- **Development (`farmconnect-dev`)**: Isolated `dev-backend` rebuilt and verified (`98/98` backend tests, `0` migration changes); frontend verified on Node 22 (`65/65` Vitest tests, `tsc --noEmit`, `vite build`).
+- **Database Migrations**: Clean (`makemigrations --check --dry-run` reports `No changes detected`; Section 4.16 required no new migrations).
 
 ## 2. Work Completed in Recent Sessions
 
@@ -50,6 +49,10 @@
 10. **Production Organizational SMTP Support** (`2026-11-23`, dev verified with mocks; prod `.env` manual):
     - Updated `backend/backend/settings.py` and `backend/backend/email_service.py` to support `PASSWORD_RESET_EMAIL_PROVIDER=smtp` when `DEBUG=False`, reading host, port, credentials, sender, timeout, and mutually-exclusive `EMAIL_USE_TLS` (STARTTLS e.g. `587`) / `EMAIL_USE_SSL` (implicit TLS via `SMTP_SSL` e.g. `465`) strictly from environment variables while keeping `'django'` restricted to `DEBUG=True`.
     - Required `backend/.env` keys documented in `docs/02-product-development/PRODUCT_DEVELOPMENT.md`. Live SMTP probe skipped per user request; mocked STARTTLS/SSL unit and endpoint tests verified cleanly.
+11. **Section 4.16 — Admin Reviews & Testimonials Moderation** (`2026-11-24`, dev only):
+    - Extended existing `IsAdmin`-protected `/api/v1/reviews/admin/products/[<pk>/]` and `/api/v1/reviews/admin/testimonials/[<pk>/]` endpoints with `AdminProductReviewSerializer` / `AdminPlatformTestimonialSerializer` (adding admin-only customer name/email, product name/slug, and `moderated_by_email` while keeping public serializers free of customer emails), backward-compatible `AdminPagination` (plain array when `page`/`page_size` omitted; paginated envelope when supplied), strict status validation (`pending`/`approved`/`rejected` filter; `approved`/`rejected` PATCH transitions rejecting no-op reapplications), single-record `GET <pk>`, and atomic `AdminAuditLog` recording.
+    - Added `Reviews & Testimonials` navigation link in `AdminLayout.tsx`, `/admin/reviews` route in `App.tsx`, admin review service methods in `admin-service.ts`, and `AdminReviews.tsx` with Product Reviews & Platform Testimonials tabs, Pending/Approved/Rejected filters, search, pagination, responsive mobile cards & desktop tables, confirmation dialogs with optional audit reason, and toast notifications.
+    - Verified with `98/98` backend tests (`12` new tests in `AdminReviewModerationTests`), `makemigrations --check --dry-run` (`No changes detected`), `14/14` Vitest files / `65/65` tests (`6` new tests in `admin-reviews.test.tsx`), `npx tsc --noEmit`, and `vite build` (`9.39s`).
 
 ## 3. Work In Progress / Outstanding Items
 

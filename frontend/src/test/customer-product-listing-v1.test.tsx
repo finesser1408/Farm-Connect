@@ -646,4 +646,117 @@ describe("Section 4.22 Phase 2D — Customer Marketplace, Cart, Checkout & Order
     expect(formatQuantityWithUnit(2, "bag", "10 kg")).toBe("2 10 kg bags");
     expect(formatQuantityWithUnit(1, "tray", "30 eggs")).toBe("1 30 eggs tray");
   });
+
+  it("renders partial-fulfillment effective totals, provisional notices, and cancelled-order farmer guards", async () => {
+    const itemA: OrderItem = {
+      id: 950,
+      product: null,
+      product_name: "Alpha Tomatoes",
+      unit_label: "kg",
+      price: "2.00",
+      quantity: 2.5,
+      get_cost: "5.00",
+      status: "pending",
+      order_status: "paid",
+    };
+    const itemB: OrderItem = {
+      id: 951,
+      product: null,
+      product_name: "Beta Beans",
+      unit_label: "20 L bucket",
+      price: "5.00",
+      quantity: 2,
+      get_cost: "10.00",
+      status: "rejected",
+      order_status: "paid",
+    };
+
+    const partialOrder: Order = {
+      id: 880,
+      customer: "customer@example.com",
+      first_name: "Alice",
+      last_name: "Moyo",
+      email: "customer@example.com",
+      address: "10 Farm Rd",
+      postal_code: "00263",
+      city: "Harare",
+      total_amount: "20.00",
+      accepted_subtotal: "0.00",
+      pending_subtotal: "5.00",
+      rejected_subtotal: "10.00",
+      delivery_fee_effective: "5.00",
+      effective_total: "10.00",
+      fulfillment_status: "partially_rejected",
+      status: "paid",
+      payment_method: "Ecocash (simulated)",
+      payment_status: "completed",
+      created_at: "2026-11-27T10:00:00Z",
+      items: [itemA, itemB],
+    };
+
+    const allRejectedOrder: Order = {
+      ...partialOrder,
+      id: 881,
+      pending_subtotal: "0.00",
+      rejected_subtotal: "15.00",
+      delivery_fee_effective: "0.00",
+      effective_total: "0.00",
+      fulfillment_status: "all_rejected",
+      status: "cancelled",
+      items: [
+        { ...itemA, status: "rejected" },
+        itemB,
+      ],
+    };
+
+    vi.mocked(orderService.getOrders).mockResolvedValue([partialOrder, allRejectedOrder]);
+    vi.mocked(orderService.getOrder).mockResolvedValue(partialOrder);
+    vi.mocked(orderService.getAdminOrders).mockResolvedValue([partialOrder]);
+    vi.mocked(orderService.getFarmerOrders).mockResolvedValue([
+      { ...itemA, order_status: "cancelled" },
+    ]);
+
+    const { unmount: unmountCust } = render(
+      <MemoryRouter>
+        <CustomerOrders />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Partially rejected — remaining items can still be fulfilled.")).toBeInTheDocument();
+    expect(screen.getByText("Adjusted amount is provisional until farmers respond.")).toBeInTheDocument();
+    expect(screen.getByText("Order cancelled — all items rejected.")).toBeInTheDocument();
+    expect(screen.getByText("Effective owed: $10.00")).toBeInTheDocument();
+    expect(screen.getByText("Effective owed: $0.00")).toBeInTheDocument();
+    unmountCust();
+
+    const { unmount: unmountTrack } = render(
+      <MemoryRouter initialEntries={["/customer/orders/880"]}>
+        <Routes>
+          <Route path="/customer/orders/:orderId" element={<OrderTracking />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Effective Amount Owed: $10.00")).toBeInTheDocument();
+    expect(screen.getByText("Adjusted amount is provisional until farmers respond.")).toBeInTheDocument();
+    unmountTrack();
+
+    const { unmount: unmountAdmin } = render(
+      <MemoryRouter>
+        <AdminOrders />
+      </MemoryRouter>,
+    );
+    expect((await screen.findAllByText("Effective owed: $10.00")).length).toBeGreaterThan(0);
+    unmountAdmin();
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <FarmerOrders />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect((await screen.findAllByText("Order cancelled")).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /accept/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /reject/i })).toBeDisabled();
+  });
 });

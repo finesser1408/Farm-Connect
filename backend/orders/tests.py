@@ -908,3 +908,473 @@ class ConcurrentCheckoutTransactionTests(TransactionTestCase):
         order.refresh_from_db()
         self.assertEqual(order.status, 'cancelled')
         self.assertTrue(order.items.get().stock_restored)
+
+
+class PartialFulfillmentAndRejectionTests(APITestCase):
+    """
+    Section 4.23 Phase 2C: Rejected order items, idempotent stock restoration,
+    parent status synchronization, effective amount owed, and legacy order safety.
+    """
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from users.models import FarmerProfile
+        from products.models import Category, Product
+        User = get_user_model()
+
+        self.customer = User.objects.create_user(
+            username='pf_customer',
+            email='pf_customer@example.com',
+            password='password123',
+            user_type='customer',
+        )
+        self.farmer_a = User.objects.create_user(
+            username='pf_farmer_a',
+            email='pf_farmer_a@example.com',
+            password='password123',
+            user_type='farmer',
+        )
+        FarmerProfile.objects.create(
+            user=self.farmer_a,
+            farm_name='Alpha Farm',
+            location='Harare',
+            status='approved',
+        )
+        self.farmer_b = User.objects.create_user(
+            username='pf_farmer_b',
+            email='pf_farmer_b@example.com',
+            password='password123',
+            user_type='farmer',
+        )
+        FarmerProfile.objects.create(
+            user=self.farmer_b,
+            farm_name='Beta Farm',
+            location='Bulawayo',
+            status='approved',
+        )
+        self.category = Category.objects.create(name='PF Crops', slug='pf-crops')
+        self.product_a = Product.objects.create(
+            farmer=self.farmer_a,
+            category=self.category,
+            name='Alpha Tomatoes',
+            slug='alpha-tomatoes',
+            description='Fresh tomatoes',
+            price=Decimal('2.00'),
+            stock=Decimal('10.00'),
+            unit='kg',
+            min_order_quantity=Decimal('0.50'),
+        )
+        self.product_b = Product.objects.create(
+            farmer=self.farmer_b,
+            category=self.category,
+            name='Beta Beans',
+            slug='beta-beans',
+            description='Dry beans',
+            price=Decimal('5.00'),
+            stock=Decimal('4.00'),
+            unit='bucket',
+            unit_description='20 L',
+            min_order_quantity=Decimal('1.00'),
+        )
+
+    def _checkout_multi_farmer(self, payment_method='ecocash'):
+        self.client.force_authenticate(user=self.customer)
+        r1 = self.client.post('/api/v1/cart/add/', {'product_id': self.product_a.id, 'quantity': '2.50'}, format='json')
+        r2 = self.client.post('/api/v1/cart/add/', {'product_id': self.product_b.id, 'quantity': '2'}, format='json')
+        self.assertEqual(r1.status_code, status.HTTP_201_CREATED, r1.data)
+        self.assertEqual(r2.status_code, status.HTTP_201_CREATED, r2.data)
+        res = self.client.post(
+            '/api/v1/cart/orders/create/',
+            {
+                'first_name': 'PF',
+                'last_name': 'Buyer',
+                'email': self.customer.email,
+                'phone': '+263770001234',
+                'address': '10 Market Rd',
+                'postal_code': '00263',
+                'city': 'Harare',
+                'payment_method': payment_method,
+            },
+            format='json',
+        )
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.data)
+        return Order.objects.get(id=res.data['id'])
+
+    @patch('orders.order_views.email_service.send_order_confirmation')
+    def test_single_item_rejection_restores_stock_once_and_preserves_accepted_item(self, send_confirm):
+        send_confirm.return_value = {'success': True, 'message': 'sent'}
+        order = self._checkout_multi_farmer(payment_method='ecocash')
+        # Confirmation email receives original checkout total ($5.00 + $10.00 + $5.00 delivery = $20.00)
+        send_confirm.assert_called_once()
+        self.assertEqual(send_confirm.call_args.kwargs['total_amount'], 20.0)
+
+        item_a = order.items.get(product=self.product_a)
+        item_b = order.items.get(product=self.product_b)
+
+        # Unauthorized farmer cannot reject another farmer's item
+        self.client.force_authenticate(user=self.farmer_a)
+        unauth = self.client.patch(
+            f'/api/v1/cart/farmer/items/{item_b.id}/status/',
+            {'status': 'rejected'},
+            format='json',
+        )
+        self.assertEqual(unauth.status_code, status.HTTP_404_NOT_FOUND)
+
+        # Farmer A accepts item A -> stock remains deducted
+        acc = self.client.patch(
+            f'/api/v1/cart/farmer/items/{item_a.id}/status/',
+            {'status': 'accepted'},
+            format='json',
+        )
+        self.assertEqual(acc.status_code, status.HTTP_200_OK)
+        self.product_a.refresh_from_db()
+        self.assertEqual(self.product_a.stock, Decimal('7.50'))
+
+        # Farmer B rejects item B -> stock restored once & stock_restored flags set
+        self.client.force_authenticate(user=self.farmer_b)
+        rej = self.client.patch(
+            f'/api/v1/cart/farmer/items/{item_b.id}/status/',
+            {'status': 'rejected'},
+            format='json',
+        )
+        self.assertEqual(rej.status_code, status.HTTP_200_OK)
+        self.assertEqual(rej.data['status'], 'rejected')
+        self.assertTrue(rej.data['stock_restored'])
+        self.assertIsNotNone(rej.data['stock_restored_at'])
+
+        self.product_b.refresh_from_db()
+        self.assertEqual(self.product_b.stock, Decimal('4.00'))
+
+        # Repeated rejection & invalid jump to shipped are blocked; stock not restored twice
+        rej2 = self.client.patch(
+            f'/api/v1/cart/farmer/items/{item_b.id}/status/',
+            {'status': 'rejected'},
+            format='json',
+        )
+        self.assertEqual(rej2.status_code, status.HTTP_400_BAD_REQUEST)
+        ship_rej = self.client.patch(
+            f'/api/v1/cart/farmer/items/{item_b.id}/status/',
+            {'status': 'shipped'},
+            format='json',
+        )
+        self.assertEqual(ship_rej.status_code, status.HTTP_400_BAD_REQUEST)
+        self.product_b.refresh_from_db()
+        self.assertEqual(self.product_b.stock, Decimal('4.00'))
+
+        # Customer sees immutable total_amount ($20.00), effective_total ($10.00), and simulated payment intact
+        self.client.force_authenticate(user=self.customer)
+        detail = self.client.get(f'/api/v1/cart/orders/{order.id}/')
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(detail.data['total_amount'], '20.00')
+        self.assertEqual(detail.data['accepted_subtotal'], '5.00')
+        self.assertEqual(detail.data['pending_subtotal'], '0.00')
+        self.assertEqual(detail.data['rejected_subtotal'], '10.00')
+        self.assertEqual(detail.data['delivery_fee_effective'], '5.00')
+        self.assertEqual(detail.data['effective_total'], '10.00')
+        self.assertEqual(detail.data['fulfillment_status'], 'partially_rejected')
+        self.assertEqual(detail.data['status'], 'paid')
+        self.assertEqual(detail.data['payment_status'], 'completed')
+
+    @patch('orders.order_views.email_service.send_order_confirmation')
+    def test_provisional_pending_plus_rejected_and_rejected_then_cancel_no_double_restore(self, send_confirm):
+        send_confirm.return_value = {'success': True, 'message': 'sent'}
+        order = self._checkout_multi_farmer(payment_method='cod')
+        item_a = order.items.get(product=self.product_a)
+        item_b = order.items.get(product=self.product_b)
+
+        # Reject item B while item A remains pending -> provisional effective_total includes A ($5.00) + $5.00 delivery
+        self.client.force_authenticate(user=self.farmer_b)
+        self.assertEqual(
+            self.client.patch(
+                f'/api/v1/cart/farmer/items/{item_b.id}/status/',
+                {'status': 'rejected'},
+                format='json',
+            ).status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.client.force_authenticate(user=self.customer)
+        detail = self.client.get(f'/api/v1/cart/orders/{order.id}/')
+        self.assertEqual(detail.data['pending_subtotal'], '5.00')
+        self.assertEqual(detail.data['rejected_subtotal'], '10.00')
+        self.assertEqual(detail.data['effective_total'], '10.00')
+        self.assertEqual(detail.data['status'], 'pending')
+
+        # Now customer cancels whole order -> item A stock restored, item B NOT double-restored
+        cancel_res = self.client.post(f'/api/v1/cart/orders/{order.id}/cancel/')
+        self.assertEqual(cancel_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(cancel_res.data['status'], 'cancelled')
+        self.assertEqual(cancel_res.data['delivery_fee_effective'], '0.00')
+        self.assertEqual(cancel_res.data['effective_total'], '0.00')
+
+        self.product_a.refresh_from_db()
+        self.product_b.refresh_from_db()
+        self.assertEqual(self.product_a.stock, Decimal('10.00'))
+        self.assertEqual(self.product_b.stock, Decimal('4.00'))
+
+        # Farmer A cannot accept/reject item A once parent order is cancelled
+        self.client.force_authenticate(user=self.farmer_a)
+        blocked = self.client.patch(
+            f'/api/v1/cart/farmer/items/{item_a.id}/status/',
+            {'status': 'accepted'},
+            format='json',
+        )
+        self.assertEqual(blocked.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch('orders.order_views.email_service.send_order_confirmation')
+    def test_all_items_rejected_auto_cancels_parent_and_restores_removed_product(self, send_confirm):
+        send_confirm.return_value = {'success': True, 'message': 'sent'}
+        order = self._checkout_multi_farmer(payment_method='ecocash')
+        item_a = order.items.get(product=self.product_a)
+        item_b = order.items.get(product=self.product_b)
+
+        # Admin removes product_b after order placement; rejection must still restore stock without un-removing
+        self.product_b.moderation_status = 'removed'
+        self.product_b.save(update_fields=['moderation_status', 'updated_at'])
+
+        self.client.force_authenticate(user=self.farmer_a)
+        self.assertEqual(
+            self.client.patch(
+                f'/api/v1/cart/farmer/items/{item_a.id}/status/',
+                {'status': 'rejected'},
+                format='json',
+            ).status_code,
+            status.HTTP_200_OK,
+        )
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'paid')  # Still paid while item_b is pending
+
+        self.client.force_authenticate(user=self.farmer_b)
+        self.assertEqual(
+            self.client.patch(
+                f'/api/v1/cart/farmer/items/{item_b.id}/status/',
+                {'status': 'rejected'},
+                format='json',
+            ).status_code,
+            status.HTTP_200_OK,
+        )
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'cancelled')
+        self.assertEqual(order.total_amount, Decimal('20.00'))
+
+        self.product_a.refresh_from_db()
+        self.product_b.refresh_from_db()
+        self.assertEqual(self.product_a.stock, Decimal('10.00'))
+        self.assertEqual(self.product_b.stock, Decimal('4.00'))
+        self.assertEqual(self.product_b.moderation_status, 'removed')
+
+        self.client.force_authenticate(user=self.customer)
+        detail = self.client.get(f'/api/v1/cart/orders/{order.id}/')
+        self.assertEqual(detail.data['fulfillment_status'], 'all_rejected')
+        self.assertEqual(detail.data['delivery_fee_effective'], '0.00')
+        self.assertEqual(detail.data['effective_total'], '0.00')
+        self.assertEqual(detail.data['payment_status'], 'completed')
+
+    @patch('orders.order_views.email_service.send_order_confirmation')
+    def test_parent_status_sync_for_non_rejected_shipped_and_delivered_and_legacy_orders(self, send_confirm):
+        send_confirm.return_value = {'success': True, 'message': 'sent'}
+        order = self._checkout_multi_farmer(payment_method='ecocash')
+        item_a = order.items.get(product=self.product_a)
+        item_b = order.items.get(product=self.product_b)
+
+        # Reject B, accept A -> parent stays 'paid'
+        self.client.force_authenticate(user=self.farmer_b)
+        self.client.patch(f'/api/v1/cart/farmer/items/{item_b.id}/status/', {'status': 'rejected'}, format='json')
+        self.client.force_authenticate(user=self.farmer_a)
+        self.client.patch(f'/api/v1/cart/farmer/items/{item_a.id}/status/', {'status': 'accepted'}, format='json')
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'paid')
+
+        # Ship A (only non-rejected item) -> parent transitions to 'shipped'
+        self.client.patch(f'/api/v1/cart/farmer/items/{item_a.id}/status/', {'status': 'shipped'}, format='json')
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'shipped')
+
+        # Deliver A -> parent transitions to 'delivered'
+        self.client.patch(f'/api/v1/cart/farmer/items/{item_a.id}/status/', {'status': 'delivered'}, format='json')
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'delivered')
+
+        # Legacy pre-V1 order (blank unit_label) remains readable with computed fields
+        from .models import OrderItem
+        legacy_order = Order.objects.create(
+            customer=self.customer,
+            first_name='Legacy',
+            last_name='User',
+            email=self.customer.email,
+            address='1 Old Rd',
+            postal_code='00263',
+            city='Harare',
+            total_amount=Decimal('9.00'),
+            status='paid',
+        )
+        OrderItem.objects.create(
+            order=legacy_order,
+            product=self.product_a,
+            product_name='Legacy Item',
+            unit_label='',
+            price=Decimal('4.00'),
+            quantity=Decimal('1.00'),
+            status='accepted',
+        )
+        self.client.force_authenticate(user=self.customer)
+        legacy_res = self.client.get(f'/api/v1/cart/orders/{legacy_order.id}/')
+        self.assertEqual(legacy_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(legacy_res.data['effective_total'], '9.00')
+        self.assertEqual(legacy_res.data['fulfillment_status'], 'accepted')
+
+
+class ConcurrentRejectionAndCancellationTests(TransactionTestCase):
+    """
+    Section 4.23 Phase 2C: PostgreSQL row-lock concurrency tests for:
+    1) Simultaneous farmer rejection requests on the same OrderItem.
+    2) Simultaneous farmer rejection and customer whole-order cancellation.
+    """
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from users.models import FarmerProfile
+        from products.models import Category, Product
+        User = get_user_model()
+
+        self.customer = User.objects.create_user(
+            username='conc_pf_cust',
+            email='conc_pf_cust@example.com',
+            password='password123',
+            user_type='customer',
+        )
+        self.farmer = User.objects.create_user(
+            username='conc_pf_farmer',
+            email='conc_pf_farmer@example.com',
+            password='password123',
+            user_type='farmer',
+        )
+        FarmerProfile.objects.create(
+            user=self.farmer,
+            farm_name='Concurrent PF Farm',
+            location='Harare',
+            status='approved',
+        )
+        self.category = Category.objects.create(name='Conc PF', slug='conc-pf')
+        self.product = Product.objects.create(
+            farmer=self.farmer,
+            category=self.category,
+            name='Conc Beans',
+            slug='conc-beans',
+            description='Beans',
+            price=Decimal('5.00'),
+            stock=Decimal('10.00'),
+            unit='bucket',
+            unit_description='20 L',
+            min_order_quantity=Decimal('1.00'),
+        )
+
+    def _create_order(self):
+        client = APIClient()
+        client.force_authenticate(user=self.customer)
+        add_res = client.post('/api/v1/cart/add/', {'product_id': self.product.id, 'quantity': '2'}, format='json')
+        self.assertEqual(add_res.status_code, status.HTTP_201_CREATED, add_res.data)
+        res = client.post(
+            '/api/v1/cart/orders/create/',
+            {
+                'first_name': 'Conc',
+                'last_name': 'Buyer',
+                'email': self.customer.email,
+                'phone': '+263770001122',
+                'address': '1 Concurrency Way',
+                'postal_code': '00263',
+                'city': 'Harare',
+                'payment_method': 'ecocash',
+            },
+            format='json',
+        )
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        return Order.objects.get(id=res.data['id'])
+
+    @patch('orders.order_views.email_service.send_order_confirmation')
+    def test_concurrent_double_rejection_restores_stock_once(self, send_confirm):
+        send_confirm.return_value = {'success': True, 'message': 'sent'}
+        order = self._create_order()
+        item = order.items.get()
+
+        barrier = threading.Barrier(2)
+        results = [None, None]
+
+        def run_reject(idx):
+            try:
+                client = APIClient()
+                client.force_authenticate(user=self.farmer)
+                barrier.wait(timeout=15)
+                res = client.patch(
+                    f'/api/v1/cart/farmer/items/{item.id}/status/',
+                    {'status': 'rejected'},
+                    format='json',
+                )
+                results[idx] = res.status_code
+            finally:
+                connections.close_all()
+
+        t1 = threading.Thread(target=run_reject, args=(0,))
+        t2 = threading.Thread(target=run_reject, args=(1,))
+        t1.start()
+        t2.start()
+        t1.join(timeout=30)
+        t2.join(timeout=30)
+
+        self.assertEqual(sorted(results), [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST])
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, Decimal('10.00'))
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'cancelled')
+
+    @patch('orders.order_views.email_service.send_order_status_update')
+    @patch('orders.order_views.email_service.send_order_confirmation')
+    def test_concurrent_rejection_and_cancellation_no_deadlock_no_double_restore(self, send_confirm, send_status):
+        send_confirm.return_value = {'success': True, 'message': 'sent'}
+        send_status.return_value = {'success': True, 'message': 'sent'}
+        order = self._create_order()
+        item = order.items.get()
+
+        barrier = threading.Barrier(2)
+        results = [None, None]
+
+        def run_reject():
+            try:
+                client = APIClient()
+                client.force_authenticate(user=self.farmer)
+                barrier.wait(timeout=15)
+                res = client.patch(
+                    f'/api/v1/cart/farmer/items/{item.id}/status/',
+                    {'status': 'rejected'},
+                    format='json',
+                )
+                results[0] = res.status_code
+            finally:
+                connections.close_all()
+
+        def run_cancel():
+            try:
+                client = APIClient()
+                client.force_authenticate(user=self.customer)
+                barrier.wait(timeout=15)
+                res = client.post(f'/api/v1/cart/orders/{order.id}/cancel/')
+                results[1] = res.status_code
+            finally:
+                connections.close_all()
+
+        t1 = threading.Thread(target=run_reject)
+        t2 = threading.Thread(target=run_cancel)
+        t1.start()
+        t2.start()
+        t1.join(timeout=30)
+        t2.join(timeout=30)
+
+        # Exactly one wins (200) and the other sees cancelled order (400), with zero deadlock and stock=10.00
+        self.assertEqual(sorted(results), [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST], results)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, Decimal('10.00'))
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'cancelled')
+        item.refresh_from_db()
+        self.assertTrue(item.stock_restored)

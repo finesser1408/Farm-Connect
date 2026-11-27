@@ -40,11 +40,42 @@ export interface Order {
   postal_code: string;
   city: string;
   total_amount: string;
+  accepted_subtotal?: string;
+  pending_subtotal?: string;
+  rejected_subtotal?: string;
+  delivery_fee_effective?: string;
+  effective_total?: string;
+  fulfillment_status?: string;
   status: string;
   payment_method: string | null;
   payment_status: string | null;
   created_at: string;
   items: OrderItem[];
+}
+
+export function getOrderFulfillmentNotice(
+  order: Pick<Order, "status" | "fulfillment_status" | "pending_subtotal" | "rejected_subtotal" | "items">,
+): { primary: string | null; provisional: string | null } {
+  const items = order.items || [];
+  const allRejected =
+    order.fulfillment_status === "all_rejected" ||
+    (items.length > 0 && items.every((item) => item.status === "rejected"));
+  if (allRejected) {
+    return { primary: "Order cancelled — all items rejected.", provisional: null };
+  }
+  const hasRejected =
+    Number(order.rejected_subtotal || 0) > 0 || items.some((item) => item.status === "rejected");
+  if (!hasRejected) {
+    return { primary: null, provisional: null };
+  }
+  const hasPending =
+    Number(order.pending_subtotal || 0) > 0 || items.some((item) => item.status === "pending");
+  return {
+    primary: "Partially rejected — remaining items can still be fulfilled.",
+    provisional: hasPending
+      ? "Adjusted amount is provisional until farmers respond."
+      : null,
+  };
 }
 
 export function getOrderItemProductName(item: OrderItem): string {

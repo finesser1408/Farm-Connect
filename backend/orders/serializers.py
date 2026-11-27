@@ -114,6 +114,14 @@ class OrderItemSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     customer = serializers.CharField(source='customer.email', read_only=True)
+    payment_method = serializers.SerializerMethodField()
+    payment_status = serializers.SerializerMethodField()
+    accepted_subtotal = serializers.SerializerMethodField()
+    pending_subtotal = serializers.SerializerMethodField()
+    rejected_subtotal = serializers.SerializerMethodField()
+    delivery_fee_effective = serializers.SerializerMethodField()
+    effective_total = serializers.SerializerMethodField()
+    fulfillment_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -121,11 +129,94 @@ class OrderSerializer(serializers.ModelSerializer):
             'id', 'customer', 'first_name', 'last_name', 'email', 'phone', 'address',
             'postal_code', 'city', 'total_amount', 'status', 'created_at',
             'updated_at', 'items', 'payment_method', 'payment_status',
+            'accepted_subtotal', 'pending_subtotal', 'rejected_subtotal',
+            'delivery_fee_effective', 'effective_total', 'fulfillment_status',
         ]
-        read_only_fields = ['id', 'customer', 'total_amount', 'created_at', 'updated_at', 'items']
+        read_only_fields = [
+            'id', 'customer', 'total_amount', 'created_at', 'updated_at', 'items',
+            'accepted_subtotal', 'pending_subtotal', 'rejected_subtotal',
+            'delivery_fee_effective', 'effective_total', 'fulfillment_status',
+        ]
 
-    payment_method = serializers.SerializerMethodField()
-    payment_status = serializers.SerializerMethodField()
+    def _get_financials(self, obj):
+        cache = getattr(obj, '_cached_financials', None)
+        if cache is not None:
+            return cache
+
+        items = list(obj.items.all())
+        accepted_subtotal = Decimal('0.00')
+        pending_subtotal = Decimal('0.00')
+        rejected_subtotal = Decimal('0.00')
+
+        for item in items:
+            line_cost = item.get_cost()
+            if item.status in ('accepted', 'shipped', 'delivered'):
+                accepted_subtotal += line_cost
+            elif item.status == 'pending':
+                pending_subtotal += line_cost
+            elif item.status == 'rejected':
+                rejected_subtotal += line_cost
+
+        accepted_subtotal = quantize_currency(accepted_subtotal)
+        pending_subtotal = quantize_currency(pending_subtotal)
+        rejected_subtotal = quantize_currency(rejected_subtotal)
+
+        all_rejected = bool(items) and all(item.status == 'rejected' for item in items)
+        is_inactive = obj.status == 'cancelled' or all_rejected or not items
+        delivery_fee_effective = Decimal('0.00') if is_inactive else DELIVERY_FEE
+        effective_total = (
+            Decimal('0.00')
+            if is_inactive
+            else quantize_currency(accepted_subtotal + pending_subtotal + delivery_fee_effective)
+        )
+
+        if all_rejected:
+            fulfillment_status = 'all_rejected'
+        elif obj.status == 'cancelled':
+            fulfillment_status = 'cancelled'
+        elif any(item.status == 'rejected' for item in items):
+            fulfillment_status = 'partially_rejected'
+        elif items and all(item.status == 'delivered' for item in items):
+            fulfillment_status = 'delivered'
+        elif items and all(item.status in ('shipped', 'delivered') for item in items):
+            fulfillment_status = 'shipped'
+        elif any(item.status in ('shipped', 'delivered') for item in items):
+            fulfillment_status = 'partially_shipped'
+        elif items and all(item.status == 'accepted' for item in items):
+            fulfillment_status = 'accepted'
+        elif any(item.status == 'accepted' for item in items):
+            fulfillment_status = 'partially_accepted'
+        else:
+            fulfillment_status = 'pending'
+
+        cache = {
+            'accepted_subtotal': f'{accepted_subtotal:.2f}',
+            'pending_subtotal': f'{pending_subtotal:.2f}',
+            'rejected_subtotal': f'{rejected_subtotal:.2f}',
+            'delivery_fee_effective': f'{delivery_fee_effective:.2f}',
+            'effective_total': f'{effective_total:.2f}',
+            'fulfillment_status': fulfillment_status,
+        }
+        obj._cached_financials = cache
+        return cache
+
+    def get_accepted_subtotal(self, obj):
+        return self._get_financials(obj)['accepted_subtotal']
+
+    def get_pending_subtotal(self, obj):
+        return self._get_financials(obj)['pending_subtotal']
+
+    def get_rejected_subtotal(self, obj):
+        return self._get_financials(obj)['rejected_subtotal']
+
+    def get_delivery_fee_effective(self, obj):
+        return self._get_financials(obj)['delivery_fee_effective']
+
+    def get_effective_total(self, obj):
+        return self._get_financials(obj)['effective_total']
+
+    def get_fulfillment_status(self, obj):
+        return self._get_financials(obj)['fulfillment_status']
 
     def get_payment_method(self, obj):
         if not hasattr(obj, 'payment'):

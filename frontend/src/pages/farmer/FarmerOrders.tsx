@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import {
@@ -10,6 +11,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 export default function FarmerOrders() {
+  const queryClient = useQueryClient();
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -29,6 +31,7 @@ export default function FarmerOrders() {
     try {
       const updated = await orderService.updateOrderItemStatus(id, "accepted");
       setOrders((current) => current.map((order) => (order.id === id ? updated : order)));
+      await queryClient.invalidateQueries({ queryKey: ["farmer-orders"] });
       toast({ title: "Order accepted", description: "The item status was updated." });
     } catch (error) {
       toast({ title: "Error", description: "Failed to update order.", variant: "destructive" });
@@ -39,6 +42,7 @@ export default function FarmerOrders() {
     try {
       const updated = await orderService.updateOrderItemStatus(id, "rejected");
       setOrders((current) => current.map((order) => (order.id === id ? updated : order)));
+      await queryClient.invalidateQueries({ queryKey: ["farmer-orders"] });
       toast({ title: "Order rejected", description: "The item status was updated." });
     } catch (error) {
       toast({ title: "Error", description: "Failed to update order.", variant: "destructive" });
@@ -81,10 +85,12 @@ export default function FarmerOrders() {
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="font-medium text-foreground">${subtotal}</p>
-                      <p className="text-xs capitalize text-muted-foreground">{o.status}</p>
+                      <p className="text-xs capitalize text-muted-foreground">
+                        {o.order_status === "cancelled" ? "Order cancelled" : o.status}
+                      </p>
                     </div>
                   </div>
-                  {o.status === "pending" && (
+                  {o.status === "pending" && o.order_status !== "cancelled" && (
                     <div className="grid grid-cols-2 gap-2">
                       <Button
                         variant="outline"
@@ -137,13 +143,15 @@ export default function FarmerOrders() {
                       </td>
                       <td className="px-6 py-3 font-medium">${subtotal}</td>
                       <td className="px-6 py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <span className="px-2 capitalize text-muted-foreground">{o.status}</span>
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="px-2 capitalize text-muted-foreground">
+                            {o.order_status === "cancelled" ? "Order cancelled" : o.status}
+                          </span>
                           <Button
                             variant="ghost"
                             size="sm"
                             className="text-primary"
-                            disabled={o.status !== "pending"}
+                            disabled={o.status !== "pending" || o.order_status === "cancelled"}
                             onClick={() => acceptOrder(o.id)}
                           >
                             <CheckCircle className="mr-1 h-4 w-4" /> Accept
@@ -152,7 +160,7 @@ export default function FarmerOrders() {
                             variant="ghost"
                             size="sm"
                             className="text-destructive"
-                            disabled={o.status !== "pending"}
+                            disabled={o.status !== "pending" || o.order_status === "cancelled"}
                             onClick={() => rejectOrder(o.id)}
                           >
                             <XCircle className="mr-1 h-4 w-4" /> Reject

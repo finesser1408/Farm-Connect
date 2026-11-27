@@ -133,7 +133,12 @@ def create_order(request):
 @permission_classes([permissions.IsAuthenticated])
 def order_list(request):
     """Get user's orders"""
-    orders = Order.objects.filter(customer=request.user).order_by('-created_at')
+    orders = (
+        Order.objects.filter(customer=request.user)
+        .select_related('payment')
+        .prefetch_related('items__product')
+        .order_by('-created_at')
+    )
     serializer = OrderSerializer(orders, many=True)
     return Response(serializer.data)
 
@@ -141,9 +146,11 @@ def order_list(request):
 @api_view(['GET'])
 @permission_classes([IsAdmin])
 def admin_order_list(request):
-    orders = Order.objects.select_related('customer').prefetch_related(
-        'items__product__farmer',
-    ).order_by('-created_at')
+    orders = (
+        Order.objects.select_related('customer', 'payment')
+        .prefetch_related('items__product__farmer')
+        .order_by('-created_at')
+    )
     return Response(OrderSerializer(orders, many=True).data)
 
 
@@ -151,7 +158,11 @@ def admin_order_list(request):
 @permission_classes([permissions.IsAuthenticated])
 def order_detail(request, order_id):
     """Get order details"""
-    order = get_object_or_404(Order, id=order_id, customer=request.user)
+    order = get_object_or_404(
+        Order.objects.select_related('payment').prefetch_related('items__product'),
+        id=order_id,
+        customer=request.user,
+    )
     serializer = OrderSerializer(order)
     return Response(serializer.data)
 
@@ -287,8 +298,14 @@ def update_order_item_status(request, item_id):
         return Response({'detail': 'Invalid order item status.'}, status=status.HTTP_400_BAD_REQUEST)
 
     with transaction.atomic():
+        # Lock hierarchy matches _cancel_order_and_restore_stock: Order -> OrderItem(product_id, id) -> Product(id)
         locked_order = Order.objects.select_for_update().get(pk=item.order_id)
-        locked_item = OrderItem.objects.select_for_update().get(pk=item.id)
+        sibling_items = list(
+            OrderItem.objects.select_for_update()
+            .filter(order_id=item.order_id)
+            .order_by('product_id', 'id')
+        )
+        locked_item = next(i for i in sibling_items if i.id == item.id)
 
         if locked_order.status in ('cancelled', 'delivered'):
             return Response(
@@ -303,7 +320,37 @@ def update_order_item_status(request, item_id):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        locked_item.status = new_status
-        locked_item.save(update_fields=['status'])
+        if new_status == 'rejected' and not locked_item.stock_restored:
+            product = Product.objects.select_for_update().get(pk=locked_item.product_id)
+            product.stock = Decimal(str(product.stock)) + Decimal(str(locked_item.quantity))
+            product.save(update_fields=['stock', 'is_available', 'updated_at'])
+
+            locked_item.status = 'rejected'
+            locked_item.stock_restored = True
+            locked_item.stock_restored_at = timezone.now()
+            locked_item.save(update_fields=['status', 'stock_restored', 'stock_restored_at'])
+        else:
+            locked_item.status = new_status
+            locked_item.save(update_fields=['status'])
+
+        # Synchronize parent Order.status from locked sibling items without bypassing transition rules
+        statuses = [sibling.status for sibling in sibling_items]
+        non_rejected = [s for s in statuses if s != 'rejected']
+        target_order_status = None
+        if statuses and all(s == 'rejected' for s in statuses):
+            if locked_order.status in ('pending', 'paid'):
+                target_order_status = 'cancelled'
+        elif non_rejected and all(s == 'delivered' for s in non_rejected):
+            target_order_status = 'delivered'
+        elif non_rejected and all(s in ('shipped', 'delivered') for s in non_rejected):
+            target_order_status = 'shipped'
+
+        if (
+            target_order_status
+            and target_order_status != locked_order.status
+            and target_order_status in ALLOWED_ORDER_STATUS_TRANSITIONS.get(locked_order.status, set())
+        ):
+            locked_order.status = target_order_status
+            locked_order.save(update_fields=['status', 'updated_at'])
 
     return Response(OrderItemSerializer(locked_item).data)

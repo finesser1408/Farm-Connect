@@ -271,9 +271,18 @@ export default function AdminOrders() {
                         {formatPaymentLabel(order)}
                       </Badge>
                     </div>
-                    <p className="text-sm font-semibold text-foreground">
-                      Total: ${Number(order.total_amount).toFixed(2)}
-                    </p>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-foreground">
+                        Total: ${Number(order.total_amount).toFixed(2)}
+                      </p>
+                      {order.effective_total !== undefined &&
+                        (Number(order.rejected_subtotal || 0) > 0 ||
+                          order.fulfillment_status === "all_rejected") && (
+                          <p className="text-[11px] text-muted-foreground">
+                            Effective owed: ${Number(order.effective_total).toFixed(2)}
+                          </p>
+                        )}
+                    </div>
                   </div>
                 </li>
               );
@@ -361,7 +370,14 @@ export default function AdminOrders() {
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-foreground">
-                        ${Number(order.total_amount).toFixed(2)}
+                        <p>${Number(order.total_amount).toFixed(2)}</p>
+                        {order.effective_total !== undefined &&
+                          (Number(order.rejected_subtotal || 0) > 0 ||
+                            order.fulfillment_status === "all_rejected") && (
+                            <p className="text-[11px] font-normal text-muted-foreground">
+                              Effective owed: ${Number(order.effective_total).toFixed(2)}
+                            </p>
+                          )}
                       </td>
                     </tr>
                   );

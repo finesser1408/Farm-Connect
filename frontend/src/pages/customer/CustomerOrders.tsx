@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import {
   formatCustomerOrderStatus,
   formatOrderItemQuantityWithUnit,
+  getOrderFulfillmentNotice,
   getOrderItemProductName,
   Order,
   orderService,
@@ -56,40 +57,60 @@ export default function CustomerOrders() {
               </Link>
             </div>
           ) : (
-            orders.map((o) => (
-              <div
-                key={o.id}
-                className="flex flex-col gap-2 border-b border-border p-4 last:border-0 sm:grid sm:grid-cols-[0.8fr,1fr,2fr,1fr,1fr,auto] sm:items-center sm:px-6"
-              >
-                <span className="font-medium text-foreground">#{o.id}</span>
-                <span className="text-sm text-muted-foreground">
-                  {new Date(o.created_at).toLocaleDateString()}
-                </span>
-                <div className="space-y-0.5 text-xs text-muted-foreground">
-                  {(o.items || []).map((item) => (
-                    <p key={item.id} className="text-foreground">
-                      {getOrderItemProductName(item)}:{" "}
-                      <span className="text-muted-foreground">
-                        {formatOrderItemQuantityWithUnit(item)} × ${Number(item.price).toFixed(2)}
-                      </span>
-                    </p>
-                  ))}
-                </div>
-                <span>
-                  <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
-                    {formatCustomerOrderStatus(o)}
+            orders.map((o) => {
+              const notice = getOrderFulfillmentNotice(o);
+              const hasAdjustment =
+                o.effective_total !== undefined &&
+                (Number(o.rejected_subtotal || 0) > 0 || o.fulfillment_status === "all_rejected");
+              return (
+                <div
+                  key={o.id}
+                  className="flex flex-col gap-2 border-b border-border p-4 last:border-0 sm:grid sm:grid-cols-[0.8fr,1fr,2fr,1fr,1fr,auto] sm:items-center sm:px-6"
+                >
+                  <span className="font-medium text-foreground">#{o.id}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {new Date(o.created_at).toLocaleDateString()}
                   </span>
-                </span>
-                <span className="font-medium text-foreground">
-                  ${Number(o.total_amount).toFixed(2)}
-                </span>
-                <Link to={`/customer/orders/${o.id}`}>
-                  <Button variant="ghost" size="sm">
-                    <Eye className="mr-1 h-4 w-4" /> Track
-                  </Button>
-                </Link>
-              </div>
-            ))
+                  <div className="space-y-0.5 text-xs text-muted-foreground">
+                    {(o.items || []).map((item) => (
+                      <p key={item.id} className="text-foreground">
+                        {getOrderItemProductName(item)}:{" "}
+                        <span className="text-muted-foreground">
+                          {formatOrderItemQuantityWithUnit(item)} × ${Number(item.price).toFixed(2)}{" "}
+                          <span className="capitalize">({item.status})</span>
+                        </span>
+                      </p>
+                    ))}
+                    {notice.primary && (
+                      <p className="pt-1 text-[11px] font-medium text-amber-700">{notice.primary}</p>
+                    )}
+                    {notice.provisional && (
+                      <p className="text-[11px] text-muted-foreground">{notice.provisional}</p>
+                    )}
+                  </div>
+                  <span>
+                    <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
+                      {formatCustomerOrderStatus(o)}
+                    </span>
+                  </span>
+                  <div>
+                    <span className="font-medium text-foreground">
+                      ${Number(o.total_amount).toFixed(2)}
+                    </span>
+                    {hasAdjustment && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Effective owed: ${Number(o.effective_total).toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                  <Link to={`/customer/orders/${o.id}`}>
+                    <Button variant="ghost" size="sm">
+                      <Eye className="mr-1 h-4 w-4" /> Track
+                    </Button>
+                  </Link>
+                </div>
+              );
+            })
           )}
         </div>
       </div>

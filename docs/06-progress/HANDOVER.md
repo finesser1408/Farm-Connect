@@ -1,13 +1,13 @@
 # Agent Handover — FarmConnect
 
-**Last Updated**: 2026-11-27 (Section 4.23 Phase 2A & 2B — Targeted Product Unit & Dashboard Corrections)
+**Last Updated**: 2026-11-27 (Section 4.23 Phase 2C Stage 2 — Rejected Order Items, Inventory Restoration & Partial Fulfillment)
 
 ## 1. Current Verified Project State
 
-- **Active Branch**: `kudzai` (HEAD `dbee71eaeae04b413f49edee91acd4f5389b81a2`, deployed baseline for Product Listing V1; Section 4.23 Phase 2A & 2B fixes are uncommitted in the working tree awaiting release authorization).
-- **Production (`farmconnect.hpc.ac.zw`)**: Deployed at commit `dbee71e` (`Product Listing V1`); untouched during Section 4.23 Phase 2A & 2B.
-- **Development (`farmconnect-dev`)**: Isolated `dev-backend` rebuilt and verified (`116/116` backend tests in `332.621s`, `0` system check or dry-run migration issues). Frontend verified on Node 22 (`82/82` Vitest tests across `17` test files, `npx tsc --noEmit`, `vite build` in `9.01s`).
-- **Database Migrations**: Clean (`makemigrations --check --dry-run` reports `No changes detected`; no new migrations added in Section 4.23 Phase 2A & 2B).
+- **Active Branch**: `kudzai` (HEAD `7249dec6a76ebe0551a7e10b639df8744fd3303a`, deployed baseline for Section 4.23 Phases 2A & 2B; Section 4.23 Phase 2C Stage 2 changes are uncommitted in the working tree awaiting review and commit authorization).
+- **Production (`farmconnect.hpc.ac.zw`)**: Deployed at commit `7249dec` (`Section 4.23 Phases 2A & 2B`); untouched during Section 4.23 Phase 2C Stage 2.
+- **Development (`farmconnect-dev`)**: Isolated `dev-backend` rebuilt and verified (`122/122` backend tests in `343.289s`, `0` system check or dry-run migration issues). Frontend verified on Node 22 (`83/83` Vitest tests across `17` test files, `npx tsc --noEmit`, `vite build` in `9.57s`).
+- **Database Migrations**: Clean (`makemigrations --check --dry-run` reports `No changes detected`; zero new migrations added in Section 4.23 Phase 2C).
 
 ## 2. Work Completed in Recent Sessions
 

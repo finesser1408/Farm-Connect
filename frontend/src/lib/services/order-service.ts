@@ -11,8 +11,23 @@ export interface OrderItem {
   quantity: number;
   get_cost: string;
   status: string;
+  order_status?: string;
   stock_restored?: boolean;
   stock_restored_at?: string | null;
+}
+
+export function isSimulatedOrderPayment(order: Pick<Order, "payment_method">): boolean {
+  return Boolean(order.payment_method && /simulated/i.test(order.payment_method));
+}
+
+export function formatCustomerOrderStatus(
+  order: Pick<Order, "status" | "payment_method">,
+): string {
+  const normalized = (order.status || "").toLowerCase();
+  if (normalized === "paid" && isSimulatedOrderPayment(order)) {
+    return "Paid (Simulated)";
+  }
+  return order.status;
 }
 
 export interface Order {

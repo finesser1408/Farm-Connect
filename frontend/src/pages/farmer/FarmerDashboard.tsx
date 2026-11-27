@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Package, ShoppingCart, DollarSign, Clock, Loader2 } from "lucide-react";
+import { roundCurrencyCents } from "@/lib/product-units";
 import { productService } from "@/lib/services/product-service";
 import {
   formatOrderItemQuantityWithUnit,
@@ -28,19 +29,44 @@ export default function FarmerDashboard() {
   const productsData = productsQuery.data;
   const products = productsData ? (Array.isArray(productsData) ? productsData : productsData.results) : [];
   const productCount = productsData && !Array.isArray(productsData) ? productsData.count : products.length;
+  const activeCount = products.filter((p) => (p.moderation_status || "active") === "active").length;
+  const availableCount = products.filter(
+    (p) =>
+      (p.moderation_status || "active") === "active" &&
+      p.is_available !== false &&
+      Number(p.stock) > 0,
+  ).length;
   const orders = ordersQuery.data ?? [];
-  const pendingCount = orders.filter((o) => o.status === "pending").length;
-  const revenue = orders
-    .filter((o) => o.status !== "rejected")
-    .reduce((sum, o) => sum + (Number(o.get_cost) || 0), 0);
+  const pendingCount = orders.filter(
+    (o) => o.status === "pending" && o.order_status !== "cancelled",
+  ).length;
+  const acceptedOrderValue = roundCurrencyCents(
+    orders
+      .filter(
+        (o) =>
+          o.order_status !== "cancelled" &&
+          (o.status === "accepted" || o.status === "shipped" || o.status === "delivered"),
+      )
+      .reduce((sum, o) => sum + (Number(o.get_cost) || 0), 0),
+  );
   const recentOrders = orders.slice(0, 5);
   const isLoading = productsQuery.isLoading || ordersQuery.isLoading;
 
   const stats = [
-    { label: "Products listed", value: String(productCount), icon: Package },
-    { label: "Order items", value: String(orders.length), icon: ShoppingCart },
-    { label: "Pending", value: String(pendingCount), icon: Clock },
-    { label: "Revenue (excl. rejected)", value: `$${revenue.toFixed(2)}`, icon: DollarSign },
+    {
+      label: "Products Listed",
+      value: String(productCount),
+      subtitle: `${activeCount} active · ${availableCount} available`,
+      icon: Package,
+    },
+    { label: "Order Items", value: String(orders.length), icon: ShoppingCart },
+    { label: "Pending Orders", value: String(pendingCount), icon: Clock },
+    {
+      label: "Accepted Order Value",
+      value: `$${acceptedOrderValue.toFixed(2)}`,
+      subtitle: "Simulated / COD · Excl. pending, rejected & cancelled",
+      icon: DollarSign,
+    },
   ];
 
   return (
@@ -57,6 +83,9 @@ export default function FarmerDashboard() {
             <p className="mt-2 truncate text-xl font-semibold text-foreground sm:text-2xl">
               {isLoading ? "—" : stat.value}
             </p>
+            {!isLoading && stat.subtitle && (
+              <p className="mt-1 truncate text-[11px] text-muted-foreground">{stat.subtitle}</p>
+            )}
           </div>
         ))}
       </div>

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import AddProduct from "@/pages/farmer/AddProduct";
 import FarmerProducts from "@/pages/farmer/FarmerProducts";
 import { useAuth } from "@/lib/auth-context";
@@ -91,14 +92,21 @@ const legacyUnitlessProduct: Product = {
 };
 
 function renderFarmerRoutes(initialPath: string) {
-  return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route path="/farmer/products" element={<FarmerProducts />} />
-        <Route path="/farmer/products/new" element={<AddProduct />} />
-      </Routes>
-    </MemoryRouter>,
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+  const utils = render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route path="/farmer/products" element={<FarmerProducts />} />
+          <Route path="/farmer/products/new" element={<AddProduct />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
+  return { ...utils, invalidateSpy };
 }
 
 describe("Product Listing V1 — Farmer AddProduct, Preview, and Editing", () => {
@@ -151,11 +159,19 @@ describe("Product Listing V1 — Farmer AddProduct, Preview, and Editing", () =>
     expect(await screen.findByRole("alert")).toHaveTextContent(/select a valid selling unit/i);
     expect(productService.createProduct).not.toHaveBeenCalled();
 
-    // 2. Packaged unit ('bag') requires Package Size / Details
+    // 2. Packaged unit ('bag') requires Package Size / Details and rejects bare numbers like '20'
     fireEvent.change(screen.getByLabelText(/Selling Unit/i), { target: { value: "bag" } });
     fireEvent.click(screen.getByRole("button", { name: /Publish Product/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /Package size \/ details are required for Bag listings/i,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Package Size \/ Details/i), {
+      target: { value: "20" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Publish Product/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /Include a unit or label in Package Size \/ Details/i,
     );
 
     // 3. Provide package description ('10 kg'), test countable fractional stock rejection ('20.5')
@@ -183,7 +199,7 @@ describe("Product Listing V1 — Farmer AddProduct, Preview, and Editing", () =>
   it("shows accurate product preview for continuous units and only publishes upon explicit confirmation without duplicate image upload", async () => {
     vi.mocked(productService.createProduct).mockResolvedValue(existingTomatoProduct);
 
-    renderFarmerRoutes("/farmer/products/new");
+    const { invalidateSpy } = renderFarmerRoutes("/farmer/products/new");
 
     await waitFor(() => {
       expect(screen.getByRole("option", { name: "Vegetables" })).toBeInTheDocument();
@@ -198,6 +214,8 @@ describe("Product Listing V1 — Farmer AddProduct, Preview, and Editing", () =>
     fireEvent.change(screen.getByLabelText(/Selling Unit/i), {
       target: { value: "kg" },
     });
+    // Package Size / Details must be disabled for continuous kg unit
+    expect(screen.getByLabelText(/Package Size \/ Details/i)).toBeDisabled();
     fireEvent.change(screen.getByLabelText(/Price per Unit/i), {
       target: { value: "1.50" },
     });
@@ -235,6 +253,7 @@ describe("Product Listing V1 — Farmer AddProduct, Preview, and Editing", () =>
     await waitFor(() => {
       expect(productService.createProduct).toHaveBeenCalledTimes(1);
     });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["products"] });
 
     const submittedData = vi.mocked(productService.createProduct).mock.calls[0][0] as FormData;
     expect(submittedData.get("name")).toBe("Organic Tomatoes");

@@ -333,7 +333,16 @@ export default function AdminProductFormDialog({
               <select
                 id="admin-product-unit"
                 value={form.unit}
-                onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                onChange={(e) => {
+                  const nextUnit = e.target.value;
+                  setForm({
+                    ...form,
+                    unit: nextUnit,
+                    unit_description: isContinuousSellingUnit(nextUnit)
+                      ? ""
+                      : form.unit_description,
+                  });
+                }}
                 required
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -357,13 +366,17 @@ export default function AdminProductFormDialog({
 
             <div className="space-y-1.5">
               <Label htmlFor="admin-product-unit-description">
-                Package Size / Details {requiresPackageDescription ? "*" : "(optional)"}
+                Package Size / Details{" "}
+                {requiresPackageDescription ? "*" : isContinuous ? "(not used)" : "(optional)"}
               </Label>
               <Input
                 id="admin-product-unit-description"
                 maxLength={40}
+                disabled={isContinuous}
                 placeholder={
-                  selectedUnitOption?.packagePlaceholder || "e.g. 10 kg, 30 eggs, 20 L"
+                  isContinuous
+                    ? "Not used for kg or L listings"
+                    : selectedUnitOption?.packagePlaceholder || "e.g. 10 kg, 30 eggs, 20 L"
                 }
                 value={form.unit_description}
                 onChange={(e) => setForm({ ...form, unit_description: e.target.value })}

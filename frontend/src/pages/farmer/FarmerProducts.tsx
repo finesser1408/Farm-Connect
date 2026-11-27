@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ type EditFormState = {
 };
 
 export default function FarmerProducts() {
+  const queryClient = useQueryClient();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -195,6 +197,7 @@ export default function FarmerProducts() {
       setProducts((current) =>
         current.map((item) => (item.id === updated.id ? updated : item)),
       );
+      await queryClient.invalidateQueries({ queryKey: ["products"] });
       toast({
         title: "Product updated",
         description: `${updated.name} has been saved.`,
@@ -248,6 +251,7 @@ export default function FarmerProducts() {
     try {
       await productService.deleteProduct(product.slug);
       setProducts((current) => current.filter((item) => item.id !== product.id));
+      await queryClient.invalidateQueries({ queryKey: ["products"] });
       toast({ title: "Product removed" });
     } catch (error) {
       console.error("Could not remove product", error);
@@ -481,7 +485,14 @@ export default function FarmerProducts() {
                   onChange={(e) => {
                     setFormError("");
                     setAwaitingUnitChangeConfirm(false);
-                    setEditForm({ ...editForm, unit: e.target.value });
+                    const nextUnit = e.target.value;
+                    setEditForm({
+                      ...editForm,
+                      unit: nextUnit,
+                      unit_description: isContinuousSellingUnit(nextUnit)
+                        ? ""
+                        : editForm.unit_description,
+                    });
                   }}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   required
@@ -506,13 +517,17 @@ export default function FarmerProducts() {
 
               <div>
                 <Label htmlFor="edit-unit-description">
-                  Package Size / Details {requiresPackageDescription ? "*" : "(optional)"}
+                  Package Size / Details{" "}
+                  {requiresPackageDescription ? "*" : isContinuous ? "(not used)" : "(optional)"}
                 </Label>
                 <Input
                   id="edit-unit-description"
                   maxLength={40}
+                  disabled={isContinuous}
                   placeholder={
-                    selectedUnitOption?.packagePlaceholder || "e.g. 10 kg, 50 kg, 30 eggs, 20 L"
+                    isContinuous
+                      ? "Not used for kg or L listings"
+                      : selectedUnitOption?.packagePlaceholder || "e.g. 10 kg, 50 kg, 30 eggs, 20 L"
                   }
                   value={editForm.unit_description}
                   onChange={(e) => {

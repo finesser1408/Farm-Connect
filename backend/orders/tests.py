@@ -645,6 +645,13 @@ class OrderLifecycleAndStockRestorationTests(APITestCase):
         self.assertEqual(cancel_res.data['status'], 'cancelled')
         self.assertEqual(cancel_res.data['total_amount'], '40.00')  # $5.00 + $30.00 + $5.00 delivery preserved
 
+        # Farmer order items endpoint exposes parent order_status='cancelled' so dashboard excludes it
+        self.client.force_authenticate(user=self.farmer)
+        farmer_items_res = self.client.get('/api/v1/cart/farmer/items/')
+        self.assertEqual(farmer_items_res.status_code, status.HTTP_200_OK)
+        self.assertTrue(all(it['order_status'] == 'cancelled' for it in farmer_items_res.data))
+        self.client.force_authenticate(user=self.customer)
+
         self.product_kg.refresh_from_db()
         self.product_crate.refresh_from_db()
         self.assertEqual(self.product_kg.stock, self.Decimal('10.00'))

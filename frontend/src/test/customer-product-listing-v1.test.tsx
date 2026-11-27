@@ -14,6 +14,7 @@ import FarmerOrders from "@/pages/farmer/FarmerOrders";
 import FarmerDashboard from "@/pages/farmer/FarmerDashboard";
 import AdminOrders from "@/pages/admin/AdminOrders";
 import { CartProvider, useCart } from "@/lib/cart-context";
+import { formatQuantityWithUnit } from "@/lib/product-units";
 import { useAuth } from "@/lib/auth-context";
 import { productService, type Category, type Product } from "@/lib/services/product-service";
 import { orderService, type Order, type OrderItem } from "@/lib/services/order-service";
@@ -122,7 +123,7 @@ const eggTrayProduct: Product = {
   unit: "tray",
   unit_display: "Tray",
   unit_description: "30 eggs",
-  formatted_unit: "tray (30 eggs)",
+  formatted_unit: "30 eggs tray",
   is_countable_unit: true,
   min_order_quantity: 1,
 };
@@ -138,7 +139,7 @@ const potatoBagProduct: Product = {
   unit: "bag",
   unit_display: "Bag",
   unit_description: "10 kg",
-  formatted_unit: "bag (10 kg)",
+  formatted_unit: "10 kg bag",
   is_countable_unit: true,
   min_order_quantity: 1,
 };
@@ -210,11 +211,11 @@ describe("Section 4.22 Phase 2D — Customer Marketplace, Cart, Checkout & Order
     expect(screen.getByText("50 kg available")).toBeInTheDocument();
 
     expect(screen.getByText("Farm Eggs")).toBeInTheDocument();
-    expect(screen.getByText("/ tray (30 eggs)")).toBeInTheDocument();
+    expect(screen.getByText("/ 30 eggs tray")).toBeInTheDocument();
     expect(screen.getByText("12 trays available")).toBeInTheDocument();
 
     expect(screen.getByText("Washed Potatoes")).toBeInTheDocument();
-    expect(screen.getByText("/ bag (10 kg)")).toBeInTheDocument();
+    expect(screen.getByText("/ 10 kg bag")).toBeInTheDocument();
     expect(screen.getByText("20 bags available")).toBeInTheDocument();
 
     // Legacy product shows price and stock without fabricated '/ kg'
@@ -384,7 +385,7 @@ describe("Section 4.22 Phase 2D — Customer Marketplace, Cart, Checkout & Order
           quantity: 1.5,
           unit: "bag",
           unit_description: "10 kg",
-          formatted_unit: "bag (10 kg)",
+          formatted_unit: "10 kg bag",
           unitChanged: true,
           previousFormattedUnit: "kg",
           min_order_quantity: 1,
@@ -584,6 +585,8 @@ describe("Section 4.22 Phase 2D — Customer Marketplace, Cart, Checkout & Order
     );
 
     expect(await screen.findByText("Organic Tomatoes")).toBeInTheDocument();
+    expect(screen.getByText("Paid (Simulated)")).toBeInTheDocument();
+    expect(screen.getByText(/Order Placed — Simulated Payment/i)).toBeInTheDocument();
     expect(screen.getByText(/2\.5 kg × \$1\.50/i)).toBeInTheDocument();
     expect(screen.getByText("Subtotal: $3.75")).toBeInTheDocument();
     expect(screen.getByText("Legacy Onions")).toBeInTheDocument();
@@ -591,7 +594,18 @@ describe("Section 4.22 Phase 2D — Customer Marketplace, Cart, Checkout & Order
     expect(screen.queryByText("Jumbo Crate Tomatoes")).not.toBeInTheDocument();
     unmountCustomer();
 
-    // 2. FarmerOrders & FarmerDashboard
+    // 2. FarmerOrders & FarmerDashboard (verify Accepted Order Value excludes rejected, pending, and cancelled orders)
+    vi.mocked(productService.getProducts).mockResolvedValue([
+      tomatoKgProduct,
+      { ...eggTrayProduct, stock: 0, is_available: false },
+      { ...potatoBagProduct, moderation_status: "hidden" },
+    ]);
+    vi.mocked(orderService.getFarmerOrders).mockResolvedValue([
+      { ...historicalItems[0], status: "accepted", order_status: "paid", get_cost: "3.75" },
+      { ...historicalItems[1], id: 903, status: "rejected", order_status: "paid", get_cost: "7.00" },
+      { ...historicalItems[1], id: 904, status: "pending", order_status: "paid", get_cost: "5.00" },
+      { ...historicalItems[1], id: 905, status: "accepted", order_status: "cancelled", get_cost: "10.00" },
+    ]);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { unmount: unmountFarmer } = render(
       <QueryClientProvider client={queryClient}>
@@ -605,6 +619,12 @@ describe("Section 4.22 Phase 2D — Customer Marketplace, Cart, Checkout & Order
     expect((await screen.findAllByText("Organic Tomatoes")).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/2\.5 kg/i).length).toBeGreaterThan(0);
     expect(screen.queryByText("Jumbo Crate Tomatoes")).not.toBeInTheDocument();
+    expect(screen.getByText("Accepted Order Value")).toBeInTheDocument();
+    expect(screen.getByText("Products Listed")).toBeInTheDocument();
+    expect(screen.getByText("2 active · 1 available")).toBeInTheDocument();
+    expect(screen.getAllByText("$3.75").length).toBeGreaterThan(0);
+    expect(screen.queryByText("$10.75")).not.toBeInTheDocument();
+    expect(screen.queryByText("$13.75")).not.toBeInTheDocument();
     unmountFarmer();
 
     // 3. AdminOrders
@@ -618,5 +638,12 @@ describe("Section 4.22 Phase 2D — Customer Marketplace, Cart, Checkout & Order
     expect(within(adminCard).getByText("Organic Tomatoes × 2.5 kg")).toBeInTheDocument();
     expect(within(adminCard).getByText("Legacy Onions × 2")).toBeInTheDocument();
     expect(within(adminCard).queryByText("Jumbo Crate Tomatoes")).not.toBeInTheDocument();
+  });
+
+  it("ignores legacy unit_description on continuous kg/l in formatQuantityWithUnit while keeping packaged units", () => {
+    expect(formatQuantityWithUnit(2, "kg", "10kg")).toBe("2 kg");
+    expect(formatQuantityWithUnit(1.5, "l", "20 L")).toBe("1.5 L");
+    expect(formatQuantityWithUnit(2, "bag", "10 kg")).toBe("2 10 kg bags");
+    expect(formatQuantityWithUnit(1, "tray", "30 eggs")).toBe("1 30 eggs tray");
   });
 });

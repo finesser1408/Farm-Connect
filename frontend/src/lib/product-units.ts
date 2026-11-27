@@ -192,8 +192,11 @@ export function formatProductUnitDisplay(
   if (!unit) return "";
   const option = getSellingUnitOption(unit);
   const shortLabel = option ? option.shortLabel : unit;
+  if (isContinuousSellingUnit(unit)) {
+    return shortLabel;
+  }
   const trimmedDesc = (unitDescription || "").trim();
-  return trimmedDesc ? `${shortLabel} (${trimmedDesc})` : shortLabel;
+  return trimmedDesc ? `${trimmedDesc} ${shortLabel}` : shortLabel;
 }
 
 const PLURAL_UNIT_NOUNS: Record<string, [string, string]> = {
@@ -234,8 +237,8 @@ export function formatQuantityWithUnit(
       ? pair[0]
       : pair[1]
     : getSellingUnitOption(unit)?.shortLabel || unit;
-  const trimmedDesc = (unitDescription || "").trim();
-  return trimmedDesc ? `${qtyStr} ${baseUnit} (${trimmedDesc})` : `${qtyStr} ${baseUnit}`;
+  const trimmedDesc = isContinuousSellingUnit(unit) ? "" : (unitDescription || "").trim();
+  return trimmedDesc ? `${qtyStr} ${trimmedDesc} ${baseUnit}` : `${qtyStr} ${baseUnit}`;
 }
 
 export function formatAvailableStockText(
@@ -380,8 +383,14 @@ export function validateProductListingForm(values: ProductListingFormValues): st
   if (trimmedUnitDesc.length > 40) {
     return "Package size / details cannot exceed 40 characters.";
   }
+  if (unitOption.group === "Weight & Volume" && trimmedUnitDesc) {
+    return `Package descriptions are not allowed for ${unitOption.label} listings. Leave Package Size blank or choose a packaged unit (Bag, Bucket, Tray, Crate).`;
+  }
   if (unitOption.requiresDescription && !trimmedUnitDesc) {
-    return `Package size / details are required for ${unitOption.label} listings (e.g. 10 kg, 30 eggs, 20 L).`;
+    return `Package size / details are required for ${unitOption.label} listings (e.g. 10 kg, 20 L, 30 eggs).`;
+  }
+  if (unitOption.requiresDescription && !/[A-Za-z]/.test(trimmedUnitDesc)) {
+    return `Include a unit or label in Package Size / Details (e.g. "10 kg", "20 L", "30 eggs") rather than a bare number.`;
   }
 
   const rawPrice = (values.price || "").trim();

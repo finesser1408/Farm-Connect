@@ -5,6 +5,7 @@ import { Eye, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import {
+  formatCustomerOrderStatus,
   formatOrderItemQuantityWithUnit,
   getOrderItemProductName,
   Order,
@@ -76,7 +77,7 @@ export default function CustomerOrders() {
                 </div>
                 <span>
                   <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
-                    {o.status}
+                    {formatCustomerOrderStatus(o)}
                   </span>
                 </span>
                 <span className="font-medium text-foreground">

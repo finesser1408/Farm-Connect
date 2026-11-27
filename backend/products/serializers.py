@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from .validators import (
     PACKAGED_UNITS_REQUIRING_DESCRIPTION,
     QuantityDecimalField,
     UNIT_DISPLAY_LABELS,
+    is_continuous_unit,
     parse_strict_decimal,
     validate_quantity_for_unit,
 )
@@ -165,6 +167,18 @@ class ProductSerializer(serializers.ModelSerializer):
         if 'unit_description' in attrs or is_create:
             attrs['unit_description'] = unit_description
 
+        if is_continuous_unit(unit) and (is_create or 'unit' in attrs or 'unit_description' in attrs):
+            if unit_description:
+                unit_label = UNIT_DISPLAY_LABELS.get(unit, unit)
+                raise serializers.ValidationError(
+                    {
+                        'unit_description': (
+                            f'Package descriptions are not allowed for {unit_label} listings. '
+                            'Leave Package Size blank or choose a packaged unit (Bag, Bucket, Tray, Crate).'
+                        )
+                    }
+                )
+
         if unit in PACKAGED_UNITS_REQUIRING_DESCRIPTION and (
             is_create or 'unit' in attrs or 'unit_description' in attrs
         ):
@@ -175,6 +189,15 @@ class ProductSerializer(serializers.ModelSerializer):
                         'unit_description': (
                             f'Provide a clear package size description for {unit_label} listings '
                             '(e.g. "10 kg", "30 eggs", "20 L").'
+                        )
+                    }
+                )
+            if not re.search(r'[A-Za-z]', unit_description):
+                raise serializers.ValidationError(
+                    {
+                        'unit_description': (
+                            'Include a unit or label in the package description (e.g. "10 kg", "20 L", "30 eggs") '
+                            'rather than a bare number.'
                         )
                     }
                 )

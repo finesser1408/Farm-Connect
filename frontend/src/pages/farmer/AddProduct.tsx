@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Eye, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +31,7 @@ const SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export default function AddProduct() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,6 +83,15 @@ export default function AddProduct() {
     (k: keyof typeof form) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       setFormError("");
+      if (k === "unit") {
+        const nextUnit = e.target.value;
+        setForm({
+          ...form,
+          unit: nextUnit,
+          unit_description: isContinuousSellingUnit(nextUnit) ? "" : form.unit_description,
+        });
+        return;
+      }
       setForm({ ...form, [k]: e.target.value });
     };
 
@@ -160,6 +171,7 @@ export default function AddProduct() {
       productData.append("category", form.category);
       if (imageFile) productData.append("image", imageFile);
       await productService.createProduct(productData);
+      await queryClient.invalidateQueries({ queryKey: ["products"] });
 
       setPreviewOpen(false);
       toast({
@@ -261,22 +273,27 @@ export default function AddProduct() {
 
           <div>
             <Label htmlFor="unit-description">
-              Package Size / Details {requiresPackageDescription ? "*" : "(optional)"}
+              Package Size / Details {requiresPackageDescription ? "*" : isContinuous ? "(not used)" : "(optional)"}
             </Label>
             <Input
               id="unit-description"
               maxLength={40}
+              disabled={isContinuous}
               placeholder={
-                selectedUnitOption?.packagePlaceholder || "e.g. 10 kg, 50 kg, 30 eggs, 20 L"
+                isContinuous
+                  ? "Not used for kg or L listings"
+                  : selectedUnitOption?.packagePlaceholder || "e.g. 10 kg, 50 kg, 30 eggs, 20 L"
               }
               value={form.unit_description}
               onChange={set("unit_description")}
               required={requiresPackageDescription}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              {requiresPackageDescription
-                ? `Required for ${selectedUnitOption?.label} listings (e.g. 10 kg, 50 kg, 30 eggs, 20 L).`
-                : "Optional size details (max 40 characters)."}
+              {isContinuous
+                ? "Continuous units (kg, L) do not use separate package descriptions."
+                : requiresPackageDescription
+                  ? `Required for ${selectedUnitOption?.label} listings (e.g. 10 kg, 20 L, 30 eggs).`
+                  : "Optional size details (max 40 characters)."}
             </p>
           </div>
         </div>

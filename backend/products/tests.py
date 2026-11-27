@@ -1003,3 +1003,65 @@ class ProductListingV1Tests(APITestCase):
         self.assertEqual(patch_res.status_code, status.HTTP_200_OK)
         legacy.refresh_from_db()
         self.assertIsNone(legacy.unit)
+
+    def test_continuous_units_reject_package_descriptions_and_packaged_units_reject_bare_numbers(self):
+        # Continuous kg/l must reject package descriptions like "10kg"
+        for cont_unit in ('kg', 'l'):
+            res = self.client.post(
+                self.url,
+                {
+                    'name': f'Bad {cont_unit}',
+                    'category': self.category.id,
+                    'unit': cont_unit,
+                    'unit_description': '10kg',
+                    'price': '2.00',
+                    'stock': 10,
+                    'description': 'Should fail.',
+                },
+                format='json',
+            )
+            self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertIn('unit_description', res.data)
+
+        # Packaged units must reject bare numbers like "20"
+        for pkg_unit in ('bucket', 'bag', 'tray', 'crate'):
+            res = self.client.post(
+                self.url,
+                {
+                    'name': f'Ambiguous {pkg_unit}',
+                    'category': self.category.id,
+                    'unit': pkg_unit,
+                    'unit_description': '20',
+                    'price': '5.00',
+                    'stock': 10,
+                    'description': 'Bare number should fail.',
+                },
+                format='json',
+            )
+            self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertIn('unit_description', res.data)
+
+        # Legacy product with bare-number unit_description='20' remains readable & allows stock/price PATCH
+        legacy_bucket = Product.objects.create(
+            farmer=self.farmer,
+            category=self.category,
+            name='Legacy Bucket Beans',
+            slug='legacy-bucket-beans',
+            description='Legacy record',
+            price='5.00',
+            stock=100,
+            unit='bucket',
+            unit_description='20',
+            min_order_quantity=2,
+        )
+        get_res = self.client.get(reverse('product-detail', args=[legacy_bucket.slug]))
+        self.assertEqual(get_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(get_res.data['formatted_unit'], '20 bucket')
+
+        stock_patch = self.client.patch(
+            reverse('product-detail', args=[legacy_bucket.slug]),
+            {'stock': 98},
+            format='json',
+        )
+        self.assertEqual(stock_patch.status_code, status.HTTP_200_OK)
+        self.assertEqual(stock_patch.data['stock'], 98)

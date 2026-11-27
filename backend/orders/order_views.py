@@ -268,7 +268,9 @@ def farmer_order_items(request):
     if request.user.user_type != 'farmer' and not request.user.is_staff:
         return Response({"detail": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
 
-    order_items = OrderItem.objects.filter(product__farmer=request.user).order_by('-order__created_at')
+    order_items = OrderItem.objects.select_related('order', 'product').filter(
+        product__farmer=request.user,
+    ).order_by('-order__created_at')
     serializer = OrderItemSerializer(order_items, many=True)
     return Response(serializer.data)
 

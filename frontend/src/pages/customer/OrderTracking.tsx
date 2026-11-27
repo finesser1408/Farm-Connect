@@ -4,8 +4,10 @@ import { ArrowLeft } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import {
+  formatCustomerOrderStatus,
   formatOrderItemQuantityWithUnit,
   getOrderItemProductName,
+  isSimulatedOrderPayment,
   Order,
   orderService,
 } from "@/lib/services/order-service";
@@ -44,13 +46,17 @@ export default function OrderTracking() {
         ) : (
           <div className="mx-auto max-w-lg rounded-lg border border-border bg-card p-6">
             <p className="mb-2">
-              Status: <span className="font-medium capitalize">{order.status}</span>
+              Status: <span className="font-medium capitalize">{formatCustomerOrderStatus(order)}</span>
             </p>
             <p className="mb-2 text-sm text-muted-foreground">
               Placed {new Date(order.created_at).toLocaleString()}
             </p>
             <p className="mb-4 text-sm">
-              Payment: {order.payment_method || "Not recorded"} ({order.payment_status || "unknown"})
+              Payment: {order.payment_method || "Not recorded"} (
+              {isSimulatedOrderPayment(order)
+                ? "Order Placed — Simulated Payment; no real charge"
+                : order.payment_status || "unknown"}
+              )
             </p>
             <ul className="divide-y divide-border">
               {order.items.map((item) => {

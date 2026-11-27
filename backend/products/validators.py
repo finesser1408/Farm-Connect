@@ -76,12 +76,16 @@ def format_unit_label(unit, unit_description=''):
     - "kg"
     - "L"
     - "10 kg bag"
+    - "20 L bucket"
     - "30 eggs tray"
+    Continuous units ('kg', 'l') always display simply as "kg" or "L".
     Returns "" when unit is None/blank (legacy pre-V1 records).
     """
     if not unit:
         return ''
     short_unit = UNIT_SHORT_LABELS.get(unit, unit)
+    if is_continuous_unit(unit):
+        return short_unit
     desc = (unit_description or '').strip()
     if desc:
         return f"{desc} {short_unit}"

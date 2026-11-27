@@ -88,6 +88,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
     unit_label = serializers.CharField(read_only=True)
     quantity = QuantityDecimalField(read_only=True)
     get_cost = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    order_status = serializers.CharField(source='order.status', read_only=True)
 
     class Meta:
         model = OrderItem
@@ -100,6 +101,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
             'quantity',
             'get_cost',
             'status',
+            'order_status',
             'stock_restored',
             'stock_restored_at',
         ]

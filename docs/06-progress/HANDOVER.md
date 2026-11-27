@@ -1,13 +1,13 @@
 # Agent Handover — FarmConnect
 
-**Last Updated**: 2026-11-25 (Section 4.22 Phase 2E — Product Listing V1 Release Readiness Verification)
+**Last Updated**: 2026-11-27 (Section 4.23 Phase 2A & 2B — Targeted Product Unit & Dashboard Corrections)
 
 ## 1. Current Verified Project State
 
-- **Active Branch**: `kudzai` (HEAD `9c9b67c1446482aed92676a9de7c7843a6fd6c4f`, synced with `origin/kudzai`; Section 4.22 Phases 2A–2E changes are uncommitted in the working tree awaiting release authorization).
-- **Production (`farmconnect.hpc.ac.zw`)**: Deployed at commit `9c9b67c` (`Section 4.21` completed `2026-11-24`); untouched during Section 4.22 Phases 2A–2E.
-- **Development (`farmconnect-dev`)**: Isolated `dev-backend` rebuilt and verified (`115/115` backend tests, `0` system check or dry-run migration issues); migrations `products.0007_product_unit_fields_and_decimal_stock`, `orders.0006_decimal_quantities_and_orderitem_snapshots`, and `orders.0007_orderitem_stock_restoration_tracking` applied cleanly in `farmconnect-dev` and verified in an isolated pre-V1-to-V1 migration rehearsal. Frontend verified on Node 22 (`81/81` Vitest tests across `17` test files, `npx tsc --noEmit`, `vite build` in `9.75s`).
-- **Database Migrations**: Clean (`makemigrations --check --dry-run` reports `No changes detected`; `products.0007`, `orders.0006`, and `orders.0007` applied to `farmconnect-dev-db` only, NOT applied to production `farmconnect-db`).
+- **Active Branch**: `kudzai` (HEAD `dbee71eaeae04b413f49edee91acd4f5389b81a2`, deployed baseline for Product Listing V1; Section 4.23 Phase 2A & 2B fixes are uncommitted in the working tree awaiting release authorization).
+- **Production (`farmconnect.hpc.ac.zw`)**: Deployed at commit `dbee71e` (`Product Listing V1`); untouched during Section 4.23 Phase 2A & 2B.
+- **Development (`farmconnect-dev`)**: Isolated `dev-backend` rebuilt and verified (`116/116` backend tests in `332.621s`, `0` system check or dry-run migration issues). Frontend verified on Node 22 (`82/82` Vitest tests across `17` test files, `npx tsc --noEmit`, `vite build` in `9.01s`).
+- **Database Migrations**: Clean (`makemigrations --check --dry-run` reports `No changes detected`; no new migrations added in Section 4.23 Phase 2A & 2B).
 
 ## 2. Work Completed in Recent Sessions
 

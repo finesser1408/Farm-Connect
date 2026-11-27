@@ -12,8 +12,8 @@ class OrderItemInline(admin.TabularInline):
     model          = OrderItem
     can_delete     = False
     raw_id_fields  = ['product']
-    readonly_fields = ('line_total',)
-    fields         = ('product', 'quantity', 'price', 'line_total')
+    readonly_fields = ('line_total', 'stock_restored', 'stock_restored_at')
+    fields         = ('product', 'product_name', 'unit_label', 'quantity', 'price', 'status', 'stock_restored', 'stock_restored_at', 'line_total')
     extra          = 0
 
     @admin.display(description='Line Total')
@@ -100,10 +100,23 @@ class OrderAdmin(NoHardDeleteAdminMixin, admin.ModelAdmin):
         updated = queryset.update(status='delivered')
         self.message_user(request, f'{updated} order(s) marked as Delivered.')
 
-    @admin.action(description='✘ Mark selected orders as Cancelled')
+    @admin.action(description='✘ Mark selected orders as Cancelled (with stock restoration)')
     def mark_cancelled(self, request, queryset):
-        updated = queryset.update(status='cancelled')
-        self.message_user(request, f'{updated} order(s) marked as Cancelled.')
+        from rest_framework import serializers as drf_serializers
+        from .order_views import _cancel_order_and_restore_stock
+
+        cancelled_count = 0
+        skipped_count = 0
+        for order in queryset:
+            try:
+                _cancel_order_and_restore_stock(order.id)
+                cancelled_count += 1
+            except drf_serializers.ValidationError:
+                skipped_count += 1
+        msg = f'{cancelled_count} order(s) cancelled and stock restored.'
+        if skipped_count:
+            msg += f' {skipped_count} ineligible order(s) skipped.'
+        self.message_user(request, msg)
 
 
 # ──────────────────────────────────────────────
@@ -112,11 +125,11 @@ class OrderAdmin(NoHardDeleteAdminMixin, admin.ModelAdmin):
 
 @admin.register(OrderItem)
 class OrderItemAdmin(NoHardDeleteAdminMixin, admin.ModelAdmin):
-    list_display   = ('id', 'order', 'product', 'quantity', 'price', 'line_total')
+    list_display   = ('id', 'order', 'product', 'quantity', 'price', 'status', 'stock_restored', 'line_total')
     search_fields  = ('product__name', 'order__id')
-    list_filter    = ('product__category',)
+    list_filter    = ('status', 'stock_restored', 'product__category')
     raw_id_fields  = ('order', 'product')
-    readonly_fields = ('line_total',)
+    readonly_fields = ('line_total', 'stock_restored', 'stock_restored_at')
 
     @admin.display(description='Line Total')
     def line_total(self, obj):

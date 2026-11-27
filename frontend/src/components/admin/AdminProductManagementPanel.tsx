@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthErrorMessage } from "@/lib/auth-context";
 import { adminService, type AdminFarmer } from "@/lib/services/admin-service";
+import { formatProductUnitDisplay } from "@/lib/product-units";
 import {
   productService,
   type Category,
@@ -552,10 +553,20 @@ export default function AdminProductManagementPanel({
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">
                     ${Number(product.price).toFixed(2)}
+                    {product.unit
+                      ? ` / ${formatProductUnitDisplay(product.unit, product.unit_description)}`
+                      : ""}
                   </span>
-                  <Badge variant={product.stock > 0 ? "outline" : "secondary"}>
-                    {product.stock > 0 ? `${product.stock} in stock` : "Out of stock"}
-                  </Badge>
+                  <div className="flex items-center gap-1.5">
+                    {!product.unit && (
+                      <Badge variant="outline" className="border-amber-500/40 text-amber-700">
+                        No unit
+                      </Badge>
+                    )}
+                    <Badge variant={product.stock > 0 ? "outline" : "secondary"}>
+                      {product.stock > 0 ? `${product.stock} in stock` : "Out of stock"}
+                    </Badge>
+                  </div>
                 </div>
 
                 {product.moderation_reason && (
@@ -615,7 +626,17 @@ export default function AdminProductManagementPanel({
                     <td className="px-6 py-3 text-muted-foreground">
                       {product.category_details?.name || "Uncategorized"}
                     </td>
-                    <td className="px-6 py-3 font-medium">${Number(product.price).toFixed(2)}</td>
+                    <td className="px-6 py-3 font-medium">
+                      <div>
+                        ${Number(product.price).toFixed(2)}
+                        {product.unit
+                          ? ` / ${formatProductUnitDisplay(product.unit, product.unit_description)}`
+                          : ""}
+                      </div>
+                      {!product.unit && (
+                        <span className="text-xs font-normal text-amber-700">No unit assigned</span>
+                      )}
+                    </td>
                     <td className="px-6 py-3">
                       <Badge variant={product.stock > 0 ? "outline" : "secondary"}>
                         {product.stock > 0 ? `${product.stock}` : "0"}

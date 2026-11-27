@@ -1,3 +1,4 @@
+from decimal import Decimal
 from uuid import uuid4
 
 from django.db import transaction
@@ -6,19 +7,29 @@ from rest_framework import serializers
 from payments.models import Payment
 from products.models import Product
 from products.serializers import ProductSerializer
+from products.validators import (
+    PACKAGED_UNITS_REQUIRING_DESCRIPTION,
+    QuantityDecimalField,
+    calculate_line_subtotal,
+    quantize_currency,
+    validate_quantity_for_unit,
+)
 from users.permissions import is_product_publicly_visible
 from .models import Cart, CartItem, Order, OrderItem
 
-# --- READ SERIALIZERS (Your original logic) ---
+DELIVERY_FEE = Decimal('5.00')
+
 
 class CartItemSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
+    quantity = QuantityDecimalField(read_only=True)
+    price = serializers.DecimalField(source='current_price', max_digits=10, decimal_places=2, read_only=True)
     total_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
     class Meta:
         model = CartItem
         fields = ['id', 'product', 'quantity', 'price', 'total_price']
-        read_only_fields = ['id', 'product', 'price', 'total_price']
+        read_only_fields = ['id', 'product', 'quantity', 'price', 'total_price']
 
 
 class CartSerializer(serializers.ModelSerializer):
@@ -32,19 +43,18 @@ class CartSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'customer', 'items', 'total_amount', 'created_at', 'updated_at']
 
 
-# --- WRITE SERIALIZERS (New Add/Remove Logic) ---
-
 class CartItemUpdateSerializer(serializers.ModelSerializer):
     """
     Handles adding products or updating quantities.
     If the product exists in the cart, it adds to the quantity.
     """
+    quantity = QuantityDecimalField()
+
     class Meta:
         model = CartItem
         fields = ['product', 'quantity']
 
     def create(self, validated_data):
-        # We get the cart from the context passed by the View
         cart_id = self.context.get('cart_id')
         product = validated_data.get('product')
         quantity = validated_data.get('quantity')
@@ -69,19 +79,34 @@ class CartItemRemoveSerializer(serializers.Serializer):
     product_id = serializers.IntegerField()
 
     def validate_product_id(self, value):
-        # Optional: Add check if product actually exists in DB
         return value
 
-# --- ORDER SERIALIZERS ---
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
+    product_name = serializers.SerializerMethodField()
+    unit_label = serializers.CharField(read_only=True)
+    quantity = QuantityDecimalField(read_only=True)
     get_cost = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
     class Meta:
         model = OrderItem
-        fields = ['id', 'product', 'price', 'quantity', 'get_cost', 'status']
-        read_only_fields = ['id', 'product', 'price', 'get_cost', 'status']
+        fields = [
+            'id',
+            'product',
+            'product_name',
+            'unit_label',
+            'price',
+            'quantity',
+            'get_cost',
+            'status',
+            'stock_restored',
+            'stock_restored_at',
+        ]
+        read_only_fields = fields
+
+    def get_product_name(self, obj):
+        return obj.product_name or (obj.product.name if obj.product_id else '')
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -90,9 +115,11 @@ class OrderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ['id', 'customer', 'first_name', 'last_name', 'email', 'phone', 'address',
-                  'postal_code', 'city', 'total_amount', 'status', 'created_at', 
-                  'updated_at', 'items', 'payment_method', 'payment_status']
+        fields = [
+            'id', 'customer', 'first_name', 'last_name', 'email', 'phone', 'address',
+            'postal_code', 'city', 'total_amount', 'status', 'created_at',
+            'updated_at', 'items', 'payment_method', 'payment_status',
+        ]
         read_only_fields = ['id', 'customer', 'total_amount', 'created_at', 'updated_at', 'items']
 
     payment_method = serializers.SerializerMethodField()
@@ -133,16 +160,36 @@ class CreateOrderSerializer(serializers.Serializer):
         cart = Cart.objects.select_for_update().filter(customer=user).first()
         if not cart:
             raise serializers.ValidationError({'cart': 'Your cart is empty.'})
-        cart_items = list(cart.items.select_related('product').select_for_update())
+        cart_items = list(cart.items.select_for_update().order_by('product_id', 'id'))
         if not cart_items:
             raise serializers.ValidationError("Cannot create order with empty cart")
 
+        product_ids = sorted({item.product_id for item in cart_items})
+        products_by_id = {
+            p.id: p
+            for p in Product.objects.select_for_update().filter(id__in=product_ids).order_by('id')
+        }
+
         locked_products = []
         for item in cart_items:
-            product = Product.objects.select_for_update().get(pk=item.product_id)
-            if not is_product_publicly_visible(product):
+            product = products_by_id.get(item.product_id)
+            if product is None or not is_product_publicly_visible(product):
+                product_label = product.name if product is not None else f'Product #{item.product_id}'
                 raise serializers.ValidationError({
-                    'cart': f'{product.name} is no longer available for purchase.'
+                    'cart': f'{product_label} is no longer available for purchase.'
+                })
+            if product.unit in PACKAGED_UNITS_REQUIRING_DESCRIPTION and not (product.unit_description or '').strip():
+                raise serializers.ValidationError({
+                    'cart': f'{product.name} has an incomplete package description and cannot be purchased right now.'
+                })
+            try:
+                validate_quantity_for_unit(item.quantity, product.unit, field_name='cart', allow_zero=False)
+            except serializers.ValidationError as exc:
+                raise serializers.ValidationError({'cart': f'Invalid quantity for {product.name}.'}) from exc
+
+            if item.quantity < product.min_order_quantity:
+                raise serializers.ValidationError({
+                    'cart': f'{product.name} requires a minimum order of {product.min_order_quantity}.'
                 })
             if not product.is_available or item.quantity > product.stock:
                 raise serializers.ValidationError({
@@ -150,8 +197,11 @@ class CreateOrderSerializer(serializers.Serializer):
                 })
             locked_products.append((item, product))
 
-        subtotal = sum((product.price * item.quantity for item, product in locked_products))
-        total_amount = subtotal + 5
+        subtotal = sum(
+            (calculate_line_subtotal(product.price, item.quantity) for item, product in locked_products),
+            Decimal('0.00'),
+        )
+        total_amount = quantize_currency(subtotal + DELIVERY_FEE)
         order = Order.objects.create(
             customer=user,
             total_amount=total_amount,
@@ -162,10 +212,12 @@ class CreateOrderSerializer(serializers.Serializer):
             OrderItem.objects.create(
                 order=order,
                 product=product,
+                product_name=product.name,
+                unit_label=product.formatted_unit,
                 price=product.price,
-                quantity=cart_item.quantity
+                quantity=cart_item.quantity,
             )
-            product.stock -= cart_item.quantity
+            product.stock = Decimal(str(product.stock)) - Decimal(str(cart_item.quantity))
             product.save(update_fields=['stock', 'is_available', 'updated_at'])
 
         Payment.objects.create(

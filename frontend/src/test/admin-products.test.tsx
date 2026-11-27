@@ -130,6 +130,12 @@ const activeProduct: Product = {
   description: "Vine-ripened red tomatoes",
   price: "4.50",
   stock: 20,
+  unit: "kg",
+  unit_display: "Kilogram",
+  unit_description: "",
+  formatted_unit: "kg",
+  is_countable_unit: false,
+  min_order_quantity: 1,
   image: null,
   is_available: true,
   moderation_status: "active",
@@ -431,5 +437,59 @@ describe("Admin Product Management", () => {
     });
 
     expect(screen.getAllByRole("button", { name: "Hide Heirloom Tomatoes" }).length).toBeGreaterThan(0);
+  });
+
+  it("displays legacy unitless warning in admin edit dialog and requires a selling unit before saving", async () => {
+    const legacyProduct: Product = {
+      ...activeProduct,
+      id: 77,
+      name: "Legacy Test Cabbage",
+      slug: "legacy-test-cabbage",
+      unit: null,
+      formatted_unit: "",
+    };
+    vi.mocked(productService.getProducts).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [legacyProduct],
+    });
+    vi.mocked(productService.updateProduct).mockResolvedValue({
+      ...legacyProduct,
+      unit: "head",
+      formatted_unit: "head",
+    });
+
+    renderAdminProducts();
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Legacy Test Cabbage").length).toBeGreaterThan(0);
+    });
+    expect(screen.getAllByText(/No unit/i).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Legacy Test Cabbage" })[0]);
+    const dialog = await screen.findByRole("dialog");
+
+    expect(within(dialog).getByText(/Legacy Product Without Selling Unit/i)).toBeInTheDocument();
+
+    // Attempting to save without selecting a unit is blocked
+    fireEvent.click(within(dialog).getByRole("button", { name: /save changes/i }));
+    expect(await within(dialog).findByText(/Please select a valid selling unit/i)).toBeInTheDocument();
+    expect(productService.updateProduct).not.toHaveBeenCalled();
+
+    // Select 'head' unit and save
+    fireEvent.change(within(dialog).getByLabelText(/selling unit/i), {
+      target: { value: "head" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(productService.updateProduct).toHaveBeenCalledWith(
+        "legacy-test-cabbage",
+        expect.any(FormData),
+      );
+    });
+    const payload = vi.mocked(productService.updateProduct).mock.calls[0][1] as FormData;
+    expect(payload.get("unit")).toBe("head");
   });
 });

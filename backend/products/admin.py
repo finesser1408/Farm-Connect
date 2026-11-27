@@ -14,8 +14,8 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(NoHardDeleteAdminMixin, admin.ModelAdmin):
-    list_display = ['id', 'name', 'price', 'stock', 'category', 'is_available', 'moderation_status']
-    list_filter = ['category', 'is_available', 'moderation_status']
+    list_display = ['id', 'name', 'price', 'unit', 'unit_description', 'stock', 'min_order_quantity', 'category', 'is_available', 'moderation_status']
+    list_filter = ['category', 'unit', 'is_available', 'moderation_status']
     search_fields = ['name', 'description']
     prepopulated_fields = {'slug': ('name',)}
     readonly_fields = ['created_at', 'updated_at', 'moderated_at']
@@ -23,7 +23,7 @@ class ProductAdmin(NoHardDeleteAdminMixin, admin.ModelAdmin):
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('name', 'slug', 'description', 'price', 'stock')
+            'fields': ('name', 'slug', 'description', 'price', 'unit', 'unit_description', 'stock', 'min_order_quantity')
         }),
         ('Category & Farmer', {
             'fields': ('category', 'farmer')

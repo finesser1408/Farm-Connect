@@ -1,6 +1,9 @@
+from decimal import Decimal
 from django.db import models
 from django.conf import settings
 from products.models import Product
+from products.validators import calculate_line_subtotal, quantize_currency
+
 
 class Order(models.Model):
     STATUS_CHOICES = (
@@ -30,6 +33,7 @@ class Order(models.Model):
     def __str__(self):
         return f'Order {self.id}'
 
+
 class OrderItem(models.Model):
     STATUS_CHOICES = (
         ('pending', 'Pending'),
@@ -41,15 +45,19 @@ class OrderItem(models.Model):
 
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='order_items')
+    product_name = models.CharField(max_length=255, blank=True, default='')
+    unit_label = models.CharField(max_length=64, blank=True, default='')
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    quantity = models.PositiveIntegerField(default=1)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('1.00'))
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    stock_restored = models.BooleanField(default=False)
+    stock_restored_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return str(self.id)
 
     def get_cost(self):
-        return self.price * self.quantity
+        return calculate_line_subtotal(self.price, self.quantity)
 
 
 class Cart(models.Model):
@@ -66,13 +74,14 @@ class Cart(models.Model):
 
     @property
     def total_amount(self):
-        return sum(item.total_price for item in self.items.all())
+        total = sum((item.total_price for item in self.items.all()), Decimal('0.00'))
+        return quantize_currency(total)
 
 
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='cart_items')
-    quantity = models.PositiveIntegerField(default=1)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('1.00'))
     price = models.DecimalField(max_digits=10, decimal_places=2)
 
     class Meta:
@@ -82,8 +91,14 @@ class CartItem(models.Model):
         return f'{self.quantity} x {self.product.name}'
 
     @property
+    def current_price(self):
+        if self.product_id and getattr(self, 'product', None) is not None:
+            return self.product.price
+        return self.price
+
+    @property
     def total_price(self):
-        return self.price * self.quantity
+        return calculate_line_subtotal(self.current_price, self.quantity)
 
     def save(self, *args, **kwargs):
         if not self.price:

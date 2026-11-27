@@ -5,7 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getAuthErrorMessage } from "@/lib/auth-context";
-import { Order, orderService } from "@/lib/services/order-service";
+import { formatQuantityNumber } from "@/lib/product-units";
+import { Order, OrderItem, orderService } from "@/lib/services/order-service";
+
+function getSnapshotProductName(item: OrderItem): string {
+  const snap = (item.product_name || "").trim();
+  if (snap) return snap;
+  return item.product?.name || "Product";
+}
+
+function getSnapshotQtyWithUnit(item: OrderItem): string {
+  const qty = formatQuantityNumber(item.quantity);
+  const unit = (item.unit_label || "").trim();
+  return unit ? `${qty} ${unit}` : qty;
+}
 
 type OrderStatusFilter = "all" | "pending" | "paid" | "shipped" | "delivered" | "cancelled";
 
@@ -81,7 +94,7 @@ export default function AdminOrders() {
         (order.customer || "").toLowerCase().includes(query) ||
         (order.email || "").toLowerCase().includes(query);
       const productMatch = order.items.some((item) =>
-        (item.product?.name || "").toLowerCase().includes(query),
+        getSnapshotProductName(item).toLowerCase().includes(query),
       );
       return orderIdMatch || customerMatch || productMatch;
     });
@@ -230,10 +243,13 @@ export default function AdminOrders() {
                         >
                           <div className="min-w-0 flex-1">
                             <p className="break-words font-medium text-foreground">
-                              {item.product?.name ?? "Product"} × {item.quantity}
+                              {getSnapshotProductName(item)} × {getSnapshotQtyWithUnit(item)}
                             </p>
                             <p className="text-muted-foreground">
-                              Subtotal: ${Number(item.get_cost ?? Number(item.price) * item.quantity).toFixed(2)}
+                              ${Number(item.price).toFixed(2)} · Subtotal: $
+                              {Number(item.get_cost ?? Number(item.price) * item.quantity).toFixed(
+                                2,
+                              )}
                             </p>
                           </div>
                           <span
@@ -309,7 +325,7 @@ export default function AdminOrders() {
                               className="flex flex-wrap items-center justify-between gap-2 text-xs"
                             >
                               <span className="font-medium text-foreground">
-                                {item.product?.name ?? "Product"} × {item.quantity}{" "}
+                                {getSnapshotProductName(item)} × {getSnapshotQtyWithUnit(item)}{" "}
                                 <span className="font-normal text-muted-foreground">
                                   (${Number(item.get_cost ?? Number(item.price) * item.quantity).toFixed(2)})
                                 </span>

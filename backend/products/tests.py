@@ -267,6 +267,7 @@ class ProductAPITestCase(APITestCase):
                             'name': f'{image_format} produce',
                             'price': '2.50',
                             'stock': 3,
+                            'unit': 'kg',
                             'description': 'Fresh produce',
                             'category': self.category.id,
                             'image': image,
@@ -497,6 +498,7 @@ class AdminProductModerationTests(APITestCase):
                     'description': 'Red onions',
                     'price': '2.25',
                     'stock': 20,
+                    'unit': 'kg',
                     'category': self.vegetables.id,
                 },
                 format='json',
@@ -741,6 +743,7 @@ class AdminProductModerationTests(APITestCase):
                 'description': 'Fresh green beans',
                 'price': '3.20',
                 'stock': 10,
+                'unit': 'kg',
                 'category': self.vegetables.id,
             },
             format='json',
@@ -754,3 +757,249 @@ class AdminProductModerationTests(APITestCase):
         self.assertEqual(del_res.status_code, status.HTTP_200_OK)
         self.other_product.refresh_from_db()
         self.assertEqual(self.other_product.moderation_status, 'removed')
+
+
+
+class ProductListingV1Tests(APITestCase):
+    """Section 4.22 Phase 2A: Selling units, package descriptions, decimal stock, and min order validation."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.farmer = User.objects.create_user(
+            username='v1_farmer',
+            email='v1_farmer@example.com',
+            password='password123',
+            user_type='farmer',
+            first_name='Tendai',
+            last_name='Moyo',
+        )
+        FarmerProfile.objects.create(
+            user=self.farmer,
+            farm_name='Mazowe Valley Farm',
+            location='Mazowe',
+            status='approved',
+        )
+        self.category, _ = Category.objects.get_or_create(
+            slug='vegetables',
+            defaults={'name': 'Vegetables'},
+        )
+        self.url = reverse('product-list-create')
+        self.client.force_authenticate(user=self.farmer)
+
+    def test_create_products_with_continuous_and_countable_units(self):
+        # 1. Continuous unit (kg) with fractional stock and min_order_quantity
+        res_kg = self.client.post(
+            self.url,
+            {
+                'name': 'Organic Tomatoes',
+                'category': self.category.id,
+                'unit': 'kg',
+                'price': '1.50',
+                'stock': '50.5',
+                'min_order_quantity': '0.5',
+                'description': 'Fresh red tomatoes sold per kg.',
+            },
+            format='json',
+        )
+        self.assertEqual(res_kg.status_code, status.HTTP_201_CREATED, res_kg.data)
+        self.assertEqual(res_kg.data['unit'], 'kg')
+        self.assertEqual(res_kg.data['unit_display'], 'Kilogram')
+        self.assertEqual(res_kg.data['formatted_unit'], 'kg')
+        self.assertFalse(res_kg.data['is_countable_unit'])
+        self.assertEqual(res_kg.data['stock'], 50.5)
+        self.assertEqual(res_kg.data['min_order_quantity'], 0.5)
+
+        # 2. Continuous unit (Litre)
+        res_l = self.client.post(
+            self.url,
+            {
+                'name': 'Fresh Farm Milk',
+                'category': self.category.id,
+                'unit': 'l',
+                'price': '1.20',
+                'stock': '25.5',
+                'min_order_quantity': '0.5',
+                'description': 'Pasteurized whole milk.',
+            },
+            format='json',
+        )
+        self.assertEqual(res_l.status_code, status.HTTP_201_CREATED, res_l.data)
+        self.assertEqual(res_l.data['formatted_unit'], 'L')
+        self.assertFalse(res_l.data['is_countable_unit'])
+
+        # 3. Packaged countable unit (bag with unit_description)
+        res_bag = self.client.post(
+            self.url,
+            {
+                'name': 'Washed Potatoes',
+                'category': self.category.id,
+                'unit': 'bag',
+                'unit_description': '10 kg',
+                'price': '8.00',
+                'stock': 15,
+                'min_order_quantity': 1,
+                'description': '10 kg pocket of potatoes.',
+            },
+            format='json',
+        )
+        self.assertEqual(res_bag.status_code, status.HTTP_201_CREATED, res_bag.data)
+        self.assertEqual(res_bag.data['formatted_unit'], '10 kg bag')
+        self.assertTrue(res_bag.data['is_countable_unit'])
+        self.assertEqual(res_bag.data['stock'], 15)
+
+        # 4. Packaged countable unit (tray of 30 eggs)
+        res_tray = self.client.post(
+            self.url,
+            {
+                'name': 'Free Range Eggs',
+                'category': self.category.id,
+                'unit': 'tray',
+                'unit_description': '30 eggs',
+                'price': '4.50',
+                'stock': 20,
+                'min_order_quantity': 1,
+                'description': 'Farm fresh eggs.',
+            },
+            format='json',
+        )
+        self.assertEqual(res_tray.status_code, status.HTTP_201_CREATED, res_tray.data)
+        self.assertEqual(res_tray.data['formatted_unit'], '30 eggs tray')
+
+    def test_rejects_missing_or_invalid_unit_on_create(self):
+        # Missing unit
+        res_missing = self.client.post(
+            self.url,
+            {
+                'name': 'Unitless Tomatoes',
+                'category': self.category.id,
+                'price': '2.00',
+                'stock': 10,
+                'description': 'Missing unit.',
+            },
+            format='json',
+        )
+        self.assertEqual(res_missing.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('unit', res_missing.data)
+
+        # Invalid unit code
+        res_invalid = self.client.post(
+            self.url,
+            {
+                'name': 'Invalid Unit Tomatoes',
+                'category': self.category.id,
+                'unit': 'wheelbarrow',
+                'price': '2.00',
+                'stock': 10,
+                'description': 'Invalid unit.',
+            },
+            format='json',
+        )
+        self.assertEqual(res_invalid.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('unit', res_invalid.data)
+
+    def test_packaged_units_require_package_description(self):
+        for packaged_unit in ('tray', 'crate', 'bag', 'bucket'):
+            with self.subTest(unit=packaged_unit):
+                res = self.client.post(
+                    self.url,
+                    {
+                        'name': f'Ambiguous {packaged_unit}',
+                        'category': self.category.id,
+                        'unit': packaged_unit,
+                        'price': '5.00',
+                        'stock': 10,
+                        'description': 'No package size provided.',
+                    },
+                    format='json',
+                )
+                self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('unit_description', res.data)
+
+        # Description > 40 chars rejected
+        res_long = self.client.post(
+            self.url,
+            {
+                'name': 'Too Long Desc Bag',
+                'category': self.category.id,
+                'unit': 'bag',
+                'unit_description': 'x' * 41,
+                'price': '5.00',
+                'stock': 10,
+                'description': 'Too long package size.',
+            },
+            format='json',
+        )
+        self.assertEqual(res_long.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('unit_description', res_long.data)
+
+    def test_rejects_invalid_prices_stock_and_min_order_quantities(self):
+        base = {
+            'name': 'Validation Item',
+            'category': self.category.id,
+            'unit': 'kg',
+            'price': '2.00',
+            'stock': 10,
+            'min_order_quantity': 1,
+            'description': 'Test item.',
+        }
+        # Zero / negative price
+        for bad_price in ('0', '0.00', '-2.50', '1.999'):
+            res = self.client.post(self.url, {**base, 'price': bad_price}, format='json')
+            self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Negative / excessive precision stock
+        for bad_stock in ('-1', '-0.5', '10.125'):
+            res = self.client.post(self.url, {**base, 'stock': bad_stock}, format='json')
+            self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Zero / negative / excessive precision min_order_quantity
+        for bad_min in ('0', '-1', '0.125'):
+            res = self.client.post(self.url, {**base, 'min_order_quantity': bad_min}, format='json')
+            self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Fractional stock or min_order_quantity on countable units rejected
+        res_frac_stock = self.client.post(
+            self.url,
+            {**base, 'unit': 'bunch', 'stock': '5.5'},
+            format='json',
+        )
+        self.assertEqual(res_frac_stock.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('stock', res_frac_stock.data)
+
+        res_frac_min = self.client.post(
+            self.url,
+            {**base, 'unit': 'head', 'min_order_quantity': '0.5'},
+            format='json',
+        )
+        self.assertEqual(res_frac_min.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('min_order_quantity', res_frac_min.data)
+
+    def test_legacy_product_with_null_unit_remains_valid_without_fabricating_kg(self):
+        legacy = Product.objects.create(
+            farmer=self.farmer,
+            category=self.category,
+            name='Legacy Test Onion',
+            slug='legacy-test-onion',
+            description='Created before V1',
+            price='3.50',
+            stock=20,
+            unit=None,
+        )
+        self.assertIsNone(legacy.unit)
+        self.assertEqual(legacy.formatted_unit, '')
+
+        # Public detail works and does not fabricate 'kg'
+        detail = self.client.get(reverse('product-detail', args=[legacy.slug]))
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertIsNone(detail.data['unit'])
+        self.assertEqual(detail.data['formatted_unit'], '')
+
+        # Partial update of price/stock on legacy product succeeds without forcing a fake unit
+        patch_res = self.client.patch(
+            reverse('product-detail', args=[legacy.slug]),
+            {'price': '4.00'},
+            format='json',
+        )
+        self.assertEqual(patch_res.status_code, status.HTTP_200_OK)
+        legacy.refresh_from_db()
+        self.assertIsNone(legacy.unit)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Image as ImageIcon } from "lucide-react";
+import { AlertTriangle, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,7 +15,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { getAuthErrorMessage } from "@/lib/auth-context";
 import type { AdminFarmer } from "@/lib/services/admin-service";
-import { productService, type Category, type Product } from "@/lib/services/product-service";
+import {
+  COUNTABLE_SELLING_UNITS,
+  WEIGHT_AND_VOLUME_UNITS,
+  getSellingUnitOption,
+  isContinuousSellingUnit,
+  isPackagedUnitRequiringDescription,
+  validateProductListingForm,
+} from "@/lib/product-units";
+import {
+  productService,
+  type Category,
+  type Product,
+} from "@/lib/services/product-service";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -24,8 +36,11 @@ type FormState = {
   farmer_id: string;
   name: string;
   category: string;
+  unit: string;
+  unit_description: string;
   price: string;
   stock: string;
+  min_order_quantity: string;
   description: string;
 };
 
@@ -33,8 +48,11 @@ const EMPTY_FORM: FormState = {
   farmer_id: "",
   name: "",
   category: "",
+  unit: "kg",
+  unit_description: "",
   price: "",
   stock: "",
+  min_order_quantity: "1",
   description: "",
 };
 
@@ -82,8 +100,11 @@ export default function AdminProductFormDialog({
         farmer_id: String(initialProduct.farmer_id ?? lockedFarmer?.user_id ?? ""),
         name: initialProduct.name,
         category: initialProduct.category ? String(initialProduct.category) : "",
+        unit: initialProduct.unit ?? "",
+        unit_description: initialProduct.unit_description ?? "",
         price: String(initialProduct.price),
         stock: String(initialProduct.stock),
+        min_order_quantity: String(initialProduct.min_order_quantity ?? 1),
         description: initialProduct.description,
       });
     } else {
@@ -142,22 +163,21 @@ export default function AdminProductFormDialog({
       setFormError("Select an approved farmer for this product.");
       return;
     }
-    if (!form.name.trim()) {
-      setFormError("Product name is required.");
-      return;
-    }
-    const parsedPrice = Number(form.price);
-    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
-      setFormError("Enter a valid price greater than 0.");
-      return;
-    }
-    const parsedStock = Number(form.stock);
-    if (!Number.isInteger(parsedStock) || parsedStock < 0) {
-      setFormError("Stock must be a whole number of 0 or more.");
-      return;
-    }
-    if (!form.description.trim()) {
-      setFormError("Product description is required.");
+
+    const validationError = validateProductListingForm({
+      name: form.name,
+      category: form.category,
+      requireCategory: false,
+      unit: form.unit,
+      unit_description: form.unit_description,
+      price: form.price,
+      stock: form.stock,
+      min_order_quantity: form.min_order_quantity,
+      description: form.description,
+      requireDescription: true,
+    });
+    if (validationError) {
+      setFormError(validationError);
       return;
     }
 
@@ -168,8 +188,11 @@ export default function AdminProductFormDialog({
         payload.append("farmer_id", form.farmer_id);
       }
       payload.append("name", form.name.trim());
-      payload.append("price", parsedPrice.toFixed(2));
-      payload.append("stock", String(parsedStock));
+      payload.append("price", Number(form.price).toFixed(2));
+      payload.append("stock", form.stock.trim());
+      payload.append("unit", form.unit);
+      payload.append("unit_description", form.unit_description.trim());
+      payload.append("min_order_quantity", form.min_order_quantity.trim());
       payload.append("description", form.description.trim());
       if (form.category) {
         payload.append("category", form.category);
@@ -204,6 +227,10 @@ export default function AdminProductFormDialog({
 
   const existingImage = mode === "edit" ? initialProduct?.image : null;
   const activePreview = imagePreview || existingImage || "";
+  const selectedUnitOption = getSellingUnitOption(form.unit);
+  const isContinuous = isContinuousSellingUnit(form.unit);
+  const requiresPackageDescription = isPackagedUnitRequiringDescription(form.unit);
+  const isLegacyUnitlessProduct = mode === "edit" && Boolean(initialProduct && !initialProduct.unit);
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !isSubmitting && onOpenChange(nextOpen)}>
@@ -214,12 +241,28 @@ export default function AdminProductFormDialog({
           </DialogTitle>
           <DialogDescription>
             {mode === "edit"
-              ? "Update pricing, stock, category details, or upload a replacement product photo."
+              ? "Update pricing, selling unit, stock, category details, or upload a replacement product photo."
               : "Create a marketplace listing linked to an approved farmer account."}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {isLegacyUnitlessProduct && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+            <div>
+              <p className="font-semibold">Legacy Product Without Selling Unit</p>
+              <p className="mt-0.5">
+                This legacy listing has no selling unit defined. Select an accurate selling unit
+                before saving changes.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           {mode === "add" && !lockedFarmer ? (
             <div className="space-y-1.5">
               <Label htmlFor="admin-product-farmer">Approved Farmer *</Label>
@@ -254,19 +297,19 @@ export default function AdminProductFormDialog({
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="admin-product-name">Product Name *</Label>
-            <Input
-              id="admin-product-name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="e.g. Organic Heirloom Tomatoes"
-              required
-            />
-          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-product-name">Product Name *</Label>
+              <Input
+                id="admin-product-name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. Organic Heirloom Tomatoes"
+                required
+              />
+            </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="space-y-1.5 sm:col-span-1">
+            <div className="space-y-1.5">
               <Label htmlFor="admin-product-category">Category</Label>
               <select
                 id="admin-product-category"
@@ -282,8 +325,56 @@ export default function AdminProductFormDialog({
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="admin-product-price">Price ($) *</Label>
+              <Label htmlFor="admin-product-unit">Selling Unit *</Label>
+              <select
+                id="admin-product-unit"
+                value={form.unit}
+                onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                required
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">Select a selling unit</option>
+                <optgroup label="Weight & Volume (Decimals allowed)">
+                  {WEIGHT_AND_VOLUME_UNITS.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Countable (Whole numbers)">
+                  {COUNTABLE_SELLING_UNITS.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-product-unit-description">
+                Package Size / Details {requiresPackageDescription ? "*" : "(optional)"}
+              </Label>
+              <Input
+                id="admin-product-unit-description"
+                maxLength={40}
+                placeholder={
+                  selectedUnitOption?.packagePlaceholder || "e.g. 10 kg, 30 eggs, 20 L"
+                }
+                value={form.unit_description}
+                onChange={(e) => setForm({ ...form, unit_description: e.target.value })}
+                required={requiresPackageDescription}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-product-price">Price per Unit ($) *</Label>
               <Input
                 id="admin-product-price"
                 type="number"
@@ -295,14 +386,26 @@ export default function AdminProductFormDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="admin-product-stock">Stock *</Label>
+              <Label htmlFor="admin-product-stock">Available Stock *</Label>
               <Input
                 id="admin-product-stock"
                 type="number"
-                step="1"
+                step={isContinuous ? "0.01" : "1"}
                 min="0"
                 value={form.stock}
                 onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-product-min-order">Minimum Order *</Label>
+              <Input
+                id="admin-product-min-order"
+                type="number"
+                step={isContinuous ? "0.01" : "1"}
+                min={isContinuous ? "0.01" : "1"}
+                value={form.min_order_quantity}
+                onChange={(e) => setForm({ ...form, min_order_quantity: e.target.value })}
                 required
               />
             </div>

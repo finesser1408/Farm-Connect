@@ -232,7 +232,10 @@ def products_list_create(request):
                         'farmer_email': target_farmer.email,
                         'category_id': product.category_id,
                         'price': str(product.price),
-                        'stock': product.stock,
+                        'stock': str(product.stock),
+                        'unit': product.unit or '',
+                        'unit_description': product.unit_description or '',
+                        'min_order_quantity': str(product.min_order_quantity),
                     },
                 )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -281,7 +284,10 @@ def product_detail(request, slug):
             'name': product.name,
             'description': product.description,
             'price': str(product.price),
-            'stock': product.stock,
+            'stock': str(product.stock),
+            'unit': product.unit or '',
+            'unit_description': product.unit_description or '',
+            'min_order_quantity': str(product.min_order_quantity),
             'category': product.category_id,
             'image': product.image.name if product.image else '',
         }
@@ -293,7 +299,10 @@ def product_detail(request, slug):
                     'name': updated_product.name,
                     'description': updated_product.description,
                     'price': str(updated_product.price),
-                    'stock': updated_product.stock,
+                    'stock': str(updated_product.stock),
+                    'unit': updated_product.unit or '',
+                    'unit_description': updated_product.unit_description or '',
+                    'min_order_quantity': str(updated_product.min_order_quantity),
                     'category': updated_product.category_id,
                     'image': updated_product.image.name if updated_product.image else '',
                 }

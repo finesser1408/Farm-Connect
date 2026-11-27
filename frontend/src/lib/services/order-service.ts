@@ -1,13 +1,18 @@
 import apiClient from "../api-client";
+import { formatQuantityNumber } from "../product-units";
 import { Product } from "./product-service";
 
 export interface OrderItem {
   id: number;
   product: Product;
+  product_name?: string;
+  unit_label?: string;
   price: string;
   quantity: number;
   get_cost: string;
   status: string;
+  stock_restored?: boolean;
+  stock_restored_at?: string | null;
 }
 
 export interface Order {
@@ -25,6 +30,23 @@ export interface Order {
   payment_status: string | null;
   created_at: string;
   items: OrderItem[];
+}
+
+export function getOrderItemProductName(item: OrderItem): string {
+  const snap = (item.product_name || "").trim();
+  if (snap) return snap;
+  return item.product?.name || "Product";
+}
+
+export function getOrderItemUnitLabel(item: OrderItem): string {
+  // Never fabricate a unit from live product edits if the historical snapshot is empty
+  return (item.unit_label || "").trim();
+}
+
+export function formatOrderItemQuantityWithUnit(item: OrderItem): string {
+  const qtyText = formatQuantityNumber(item.quantity);
+  const unitLabel = getOrderItemUnitLabel(item);
+  return unitLabel ? `${qtyText} ${unitLabel}` : qtyText;
 }
 
 export const orderService = {
@@ -63,7 +85,10 @@ export const orderService = {
   },
 
   updateOrderItemStatus: async (itemId: number, status: string) => {
-    const response = await apiClient.patch<OrderItem>(`/cart/farmer/items/${itemId}/status/`, { status });
+    const response = await apiClient.patch<OrderItem>(
+      `/cart/farmer/items/${itemId}/status/`,
+      { status },
+    );
     return response.data;
-  }
+  },
 };

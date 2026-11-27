@@ -9,6 +9,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { getImageUrl } from "@/lib/api-client";
+import {
+  formatAvailableStockText,
+  formatProductUnitDisplay,
+  formatQuantityNumber,
+} from "@/lib/product-units";
 import type { Product } from "@/lib/services/product-service";
 import {
   calculateApproximateTownDistanceKm,
@@ -93,6 +98,22 @@ export default function CategoryProductPreviewModal({
               <span className="text-xs uppercase tracking-wide text-muted-foreground">Price</span>
               <p className="text-2xl font-bold text-foreground">
                 ${parseFloat(product.price).toFixed(2)}
+                {product.unit && (
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {" "}
+                    / {formatProductUnitDisplay(product.unit, product.unit_description)}
+                  </span>
+                )}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {formatAvailableStockText(product.stock, product.unit, product.is_available)}
+                {product.min_order_quantity
+                  ? ` · Min order: ${formatQuantityNumber(product.min_order_quantity)}${
+                      product.unit
+                        ? ` ${formatProductUnitDisplay(product.unit, product.unit_description)}`
+                        : ""
+                    }`
+                  : ""}
               </p>
             </div>
 

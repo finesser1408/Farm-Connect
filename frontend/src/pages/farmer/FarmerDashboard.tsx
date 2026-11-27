@@ -2,7 +2,11 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Package, ShoppingCart, DollarSign, Clock, Loader2 } from "lucide-react";
 import { productService } from "@/lib/services/product-service";
-import { orderService } from "@/lib/services/order-service";
+import {
+  formatOrderItemQuantityWithUnit,
+  getOrderItemProductName,
+  orderService,
+} from "@/lib/services/order-service";
 
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-amber-100 text-amber-800",
@@ -86,9 +90,11 @@ export default function FarmerDashboard() {
               {recentOrders.map((o) => (
                 <li key={o.id} className="flex items-start justify-between gap-3 px-4 py-3">
                   <div className="min-w-0">
-                    <p className="truncate font-medium text-foreground">{o.product?.name}</p>
+                    <p className="truncate font-medium text-foreground">
+                      {getOrderItemProductName(o)}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      #{o.id} · Qty {o.quantity}
+                      #{o.id} · Qty {formatOrderItemQuantityWithUnit(o)}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
@@ -117,8 +123,8 @@ export default function FarmerDashboard() {
                   {recentOrders.map((o) => (
                     <tr key={o.id}>
                       <td className="px-6 py-3 font-medium text-foreground">#{o.id}</td>
-                      <td className="px-6 py-3 text-foreground">{o.product?.name}</td>
-                      <td className="px-6 py-3">{o.quantity}</td>
+                      <td className="px-6 py-3 text-foreground">{getOrderItemProductName(o)}</td>
+                      <td className="px-6 py-3">{formatOrderItemQuantityWithUnit(o)}</td>
                       <td className="px-6 py-3 capitalize">{o.status}</td>
                       <td className="px-6 py-3 text-right font-medium">${o.get_cost}</td>
                     </tr>

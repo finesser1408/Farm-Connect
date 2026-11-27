@@ -23,6 +23,10 @@ import { ProductCardSkeleton } from "@/components/Skeletons";
 import CategoryProductPreviewModal from "@/components/CategoryProductPreviewModal";
 import { getImageUrl } from "@/lib/api-client";
 import {
+  formatAvailableStockText,
+  formatProductUnitDisplay,
+} from "@/lib/product-units";
+import {
   productService,
   type Category,
   type Product,
@@ -588,9 +592,28 @@ export default function ShopByCategorySection({
                                   </div>
 
                                   <div className="mt-auto flex items-center justify-between pt-3">
-                                    <span className="text-base font-bold text-foreground">
-                                      ${parseFloat(product.price).toFixed(2)}
-                                    </span>
+                                    <div>
+                                      <span className="text-base font-bold text-foreground">
+                                        ${parseFloat(product.price).toFixed(2)}
+                                      </span>
+                                      {product.unit && (
+                                        <span className="text-xs font-medium text-muted-foreground">
+                                          {" "}
+                                          /{" "}
+                                          {formatProductUnitDisplay(
+                                            product.unit,
+                                            product.unit_description,
+                                          )}
+                                        </span>
+                                      )}
+                                      <p className="text-[11px] text-muted-foreground">
+                                        {formatAvailableStockText(
+                                          product.stock,
+                                          product.unit,
+                                          product.is_available,
+                                        )}
+                                      </p>
+                                    </div>
                                     <span className="text-xs font-medium text-green-700 group-hover:underline">
                                       Quick preview
                                     </span>
